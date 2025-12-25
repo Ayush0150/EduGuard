@@ -29,6 +29,7 @@
   }
 }
 
+/* ---------------- Animations ---------------- */
 @keyframes slideDown {
   from {
     opacity: 0;
@@ -38,4 +39,26 @@
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* ---------------- Chrome Autofill Fix ---------------- */
+/* Light mode */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill,
+select:-webkit-autofill {
+  -webkit-box-shadow: 0 0 0px 1000px #f8fafc inset !important; /* slate-100 */
+  -webkit-text-fill-color: #0f172a !important; /* slate-900 */
+  caret-color: #0f172a;
+  transition: background-color 9999s ease-in-out 0s;
+}
+
+/* Dark mode */
+.dark input:-webkit-autofill,
+.dark textarea:-webkit-autofill,
+.dark select:-webkit-autofill {
+  -webkit-box-shadow: 0 0 0px 1000px #020617 inset !important; /* slate-950 */
+  -webkit-text-fill-color: #f8fafc !important;
+  caret-color: #f8fafc;
 }
