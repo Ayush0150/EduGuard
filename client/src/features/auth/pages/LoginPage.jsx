@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import collegeImg from "../../../assets/college-img.png";
-import { setAccessToken } from "../../../core/auth/tokenStorage";
+import {
+  getAuthSession,
+  setAuthSession,
+} from "../../../core/auth/tokenStorage";
 import { login } from "../api/authApi";
 import { AlertMessage } from "../components/AlertMessage";
 import { AuthLayout } from "../components/AuthLayout";
@@ -36,6 +39,15 @@ export default function LoginPage() {
     }
   }, [success]);
 
+  useEffect(() => {
+    const { token, isValid } = getAuthSession();
+
+    // If already logged in with valid session, redirect immediately
+    if (token && isValid) {
+      window.location.replace("/dashboard");
+    }
+  }, []);
+
   async function onSubmit(e) {
     e.preventDefault();
     setError("");
@@ -55,10 +67,12 @@ export default function LoginPage() {
     try {
       const payload = { identifier: trimmedIdentifier, password, remember };
       const data = await login(payload);
-      setAccessToken(data.token);
+      setAuthSession({ token: data.token, user: data.user, remember });
       setError("");
       setFieldErrors({});
       setSuccess("Login successful! Welcome back.");
+      // User portal always lands on the user dashboard.
+      window.location.replace("/dashboard");
     } catch (err) {
       const serverErrors = err?.response?.data?.errors;
       if (Array.isArray(serverErrors) && serverErrors.length) {

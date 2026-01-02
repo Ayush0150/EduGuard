@@ -1,6 +1,18 @@
 import { Router } from "express";
+import { requireAuth } from "../../core/middlewares/auth.js";
 import {
+  authRateLimiter,
+  loginRateLimiter,
+} from "../../core/middlewares/rateLimit.js";
+import { validateBody } from "../../core/middlewares/validate.js";
+import {
+  getMe,
+  postAdminLogin,
+  postAdminRequestOtp,
+  postAdminResetPassword,
+  postAdminVerifyOtp,
   postLogin,
+  postLogout,
   postRequestOtp,
   postResetPassword,
   postVerifyOtp,
@@ -12,42 +24,65 @@ import {
   verifyOtpSchema,
 } from "./auth.validation.js";
 
-function validate(schema) {
-  return (req, res, next) => {
-    const parsed = schema.safeParse(req.body);
-    if (!parsed.success) {
-      const errors = parsed.error.issues.map((issue) => ({
-        path: issue.path.join("."),
-        message: issue.message,
-      }));
-
-      return res.status(400).json({
-        success: false,
-        message: errors[0]?.message ?? "Validation error",
-        errors,
-      });
-    }
-    req.body = parsed.data;
-    next();
-  };
-}
-
 export const authRouter = Router();
 
-authRouter.post("/login", validate(loginSchema), postLogin);
+/**
+ * AUTH ROUTES
+ * Base path: /api/v1/auth
+ */
+
+authRouter.use(authRateLimiter);
+
+authRouter.post(
+  "/login",
+  loginRateLimiter,
+  validateBody(loginSchema),
+  postLogin
+);
+authRouter.post(
+  "/admin/login",
+  loginRateLimiter,
+  validateBody(loginSchema),
+  postAdminLogin
+);
+
+// Admin-only password reset flow (strict)
+authRouter.post(
+  "/admin/forgot-password/request-otp",
+  validateBody(requestOtpSchema),
+  postAdminRequestOtp
+);
+
+authRouter.post(
+  "/admin/forgot-password/verify-otp",
+  validateBody(verifyOtpSchema),
+  postAdminVerifyOtp
+);
+
+authRouter.post(
+  "/admin/forgot-password/reset",
+  validateBody(resetPasswordSchema),
+  postAdminResetPassword
+);
+
+authRouter.post("/logout", postLogout);
+
+authRouter.get("/me", requireAuth, getMe);
 
 authRouter.post(
   "/forgot-password/request-otp",
-  validate(requestOtpSchema),
+  validateBody(requestOtpSchema),
   postRequestOtp
 );
+
 authRouter.post(
   "/forgot-password/verify-otp",
-  validate(verifyOtpSchema),
+  validateBody(verifyOtpSchema),
   postVerifyOtp
 );
+
 authRouter.post(
   "/forgot-password/reset",
-  validate(resetPasswordSchema),
+  validateBody(resetPasswordSchema),
   postResetPassword
 );

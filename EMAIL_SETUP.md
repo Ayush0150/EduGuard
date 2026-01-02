@@ -24,8 +24,15 @@ Since you're using `eduguard.noreply@gmail.com`, follow these steps:
 
 4. **Update .env File**
    ```env
+   SMTP_HOST=smtp.gmail.com
+   SMTP_PORT=465
+   SMTP_SECURE=true
    SMTP_USER=eduguard.noreply@gmail.com
    SMTP_PASS=abcdefghijklmnop  # Replace with your actual app password (remove spaces)
+   MAIL_FROM=EduGuard Security <eduguard.noreply@gmail.com>
+
+   # Locks admin access to ONLY this email (recommended)
+   SUPER_ADMIN_EMAIL=eduguard.noreply@gmail.com
    ```
 
 5. **Restart the Server**

@@ -26,10 +26,25 @@ await mongoose.connect(env.mongoUri);
 try {
   const deleted = await User.deleteMany({});
 
+  const adminEmail = (
+    process.env.BOOTSTRAP_ADMIN_EMAIL ??
+    env.superAdminEmail ??
+    env.mail.user ??
+    "eduguard.noreply@gmail.com"
+  )
+    .trim()
+    .toLowerCase();
+
+  const adminUsername = (
+    process.env.BOOTSTRAP_ADMIN_USERNAME ?? "wannabeiyoush"
+  ).trim();
+
+  const adminPassword = process.env.BOOTSTRAP_ADMIN_PASSWORD ?? "Ayush@0150";
+
   const admin = await User.create({
-    username: env.bootstrap.username,
-    email: String(env.bootstrap.email).toLowerCase(),
-    passwordHash: await hashPassword(env.bootstrap.password),
+    username: adminUsername,
+    email: adminEmail,
+    passwordHash: await hashPassword(adminPassword),
     role: "SUPER_ADMIN",
     isActive: true,
   });

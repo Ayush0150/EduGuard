@@ -1,8 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import adminImg from "../../../assets/admin-img.jpg";
-import { setAccessToken } from "../../../core/auth/tokenStorage";
-import { login } from "../api/authApi";
+import { decodeJwt } from "../../../core/auth/jwt";
+import {
+  getAuthSession,
+  setAuthSession,
+} from "../../../core/auth/tokenStorage";
+import { adminLogin } from "../api/authApi";
 import { AlertMessage } from "../components/AlertMessage";
 import { AuthLayout } from "../components/AuthLayout";
 import { FormInput } from "../components/FormInput";
@@ -37,6 +41,18 @@ export default function AdminLoginPage() {
     }
   }, [success]);
 
+  useEffect(() => {
+    const { token, user, isValid } = getAuthSession();
+
+    // If already logged in with valid session, redirect based on role
+    if (token && isValid) {
+      const role = user?.role ?? decodeJwt(token)?.role;
+      const next =
+        role === "ADMIN" || role === "SUPER_ADMIN" ? "/admin" : "/dashboard";
+      navigate(next, { replace: true });
+    }
+  }, [navigate]);
+
   async function onSubmit(e) {
     e.preventDefault();
     setError("");
@@ -55,12 +71,19 @@ export default function AdminLoginPage() {
     setBusy(true);
     try {
       const payload = { identifier: trimmedIdentifier, password, remember };
-      const data = await login(payload);
-      setAccessToken(data.token);
+      const data = await adminLogin(payload);
+
+      // Store session with user data
+      setAuthSession({ token: data.token, user: data.user, remember });
+
       setError("");
       setFieldErrors({});
-      setSuccess("Login successful! Welcome back.");
-      setTimeout(() => navigate("/admin"), 1000);
+      setSuccess("Login successful! Redirecting...");
+
+      // Use window.location for clean navigation (prevents state issues)
+      setTimeout(() => {
+        window.location.replace("/admin");
+      }, 500);
     } catch (err) {
       const serverErrors = err?.response?.data?.errors;
       if (Array.isArray(serverErrors) && serverErrors.length) {

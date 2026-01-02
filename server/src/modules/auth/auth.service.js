@@ -4,6 +4,7 @@ import { env } from "../../core/config/env.js";
 import { signAccessToken } from "../../core/security/jwt.js";
 import { hashPassword, verifyPassword } from "../../core/security/password.js";
 import { loginAttemptStore } from "../../core/store/loginAttemptStore.js";
+import { logger } from "../../core/utils/logger.js";
 import { User } from "../users/user.model.js";
 
 /* -------------------------------------------------------------------------- */
@@ -22,16 +23,61 @@ function sha256(value) {
   return crypto.createHash("sha256").update(String(value)).digest("hex");
 }
 
+const MAX_LOGIN_ATTEMPTS = 10;
+const LOGIN_LOCK_MESSAGE =
+  "Too many failed sign-in attempts. Please try again in 15 minutes.";
+
+const ADMIN_ROLES = new Set(["ADMIN", "SUPER_ADMIN"]);
+
+function isAdminRole(role) {
+  return ADMIN_ROLES.has(role);
+}
+
 /* -------------------------------------------------------------------------- */
 /*                              Email Helpers                                  */
 /* -------------------------------------------------------------------------- */
 
 function createTransporter() {
   const { host, port, secure, user, pass } = env.mail;
-  if (!host || !user || !pass) return null;
+  if (!user || !pass) return null;
+
+  const normalizedUser = String(user).trim().toLowerCase();
+  const normalizedHost = String(host ?? "")
+    .trim()
+    .toLowerCase();
+  const isGmailUser =
+    normalizedUser.endsWith("@gmail.com") ||
+    normalizedUser.endsWith("@googlemail.com");
+
+  // If host is explicitly configured, honor host/port/secure.
+  if (normalizedHost) {
+    return nodemailer.createTransport({
+      host: normalizedHost,
+      port,
+      secure,
+      auth: { user, pass },
+    });
+  }
+
+  // Otherwise, fall back to Nodemailer's well-known Gmail config for Gmail accounts.
+  if (isGmailUser) {
+    return nodemailer.createTransport({
+      service: "gmail",
+      auth: { user, pass },
+    });
+  }
+
+  return null;
+}
+
+function createSmtpTransporter({ host, port, secure, user, pass }) {
+  const normalizedHost = String(host ?? "")
+    .trim()
+    .toLowerCase();
+  if (!normalizedHost || !user || !pass) return null;
 
   return nodemailer.createTransport({
-    host,
+    host: normalizedHost,
     port,
     secure,
     auth: { user, pass },
@@ -40,9 +86,7 @@ function createTransporter() {
 
 function getOfficialFrom() {
   // Always use authenticated mailbox to avoid spam / spoofing issues
-  return env.mail.user
-    ? `EduGuard Security <${env.mail.user}>`
-    : env.mail.from;
+  return env.mail.user ? `EduGuard Security <${env.mail.user}>` : env.mail.from;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -143,29 +187,78 @@ If you did not request a password reset, please ignore this email.
 /*                                   Login                                    */
 /* -------------------------------------------------------------------------- */
 
-export async function login({ identifier, password, ip }) {
+export async function login({
+  identifier,
+  password,
+  ip,
+  roleCheck,
+  roleCheckMessage,
+}) {
   const normalized = normalizeIdentifier(identifier);
   const attemptKey = loginAttemptStore.key({ identifier: normalized, ip });
+
+  const attempts = loginAttemptStore.getAttempts(attemptKey);
+  if (attempts >= MAX_LOGIN_ATTEMPTS) {
+    logger.security.loginLocked({
+      email: normalized,
+      ip,
+      attempts,
+    });
+    return {
+      ok: false,
+      status: 429,
+      message: LOGIN_LOCK_MESSAGE,
+    };
+  }
 
   const query = isEmail(normalized)
     ? { email: normalized.toLowerCase() }
     : { username: normalized };
 
-  const user = await User.findOne(query);
+  const user = await User.findOne(query).select("+passwordHash");
   const passwordOk = user
     ? await verifyPassword(password, user.passwordHash)
     : false;
 
   if (!user || !user.isActive || !passwordOk) {
     loginAttemptStore.increment(attemptKey);
+    logger.security.loginAttempt(false, {
+      email: normalized,
+      ip,
+      reason: !user
+        ? "User not found"
+        : !user.isActive
+        ? "Account inactive"
+        : "Invalid password",
+    });
     return {
       ok: false,
       status: 401,
-      message: "Unable to sign in. Please check your credentials and try again.",
+      message:
+        "Unable to sign in. Please check your credentials and try again.",
+    };
+  }
+
+  if (typeof roleCheck === "function" && !roleCheck(user.role)) {
+    logger.security.loginAttempt(false, {
+      email: user.email,
+      ip,
+      reason: roleCheckMessage || "Insufficient role",
+    });
+    return {
+      ok: false,
+      status: 403,
+      message: roleCheckMessage || "Forbidden",
     };
   }
 
   loginAttemptStore.reset(attemptKey);
+
+  logger.security.loginAttempt(true, {
+    email: user.email,
+    ip,
+    reason: "Success",
+  });
 
   const token = signAccessToken(
     { userId: user._id.toString(), role: user.role },
@@ -183,6 +276,63 @@ export async function login({ identifier, password, ip }) {
         email: user.email,
         role: user.role,
       },
+    },
+  };
+}
+
+export async function loginUser({ identifier, password, ip }) {
+  return login({
+    identifier,
+    password,
+    ip,
+    roleCheck: (role) => !isAdminRole(role),
+    roleCheckMessage: "Please sign in via the Admin Login page.",
+  });
+}
+
+export async function loginAdmin({ identifier, password, ip }) {
+  const result = await login({
+    identifier,
+    password,
+    ip,
+    roleCheck: (role) => isAdminRole(role),
+    roleCheckMessage: "Admin access required.",
+  });
+
+  if (!result?.ok) return result;
+
+  if (env.superAdminEmail) {
+    const email = String(result?.data?.user?.email ?? "")
+      .trim()
+      .toLowerCase();
+    if (email !== env.superAdminEmail) {
+      return {
+        ok: false,
+        status: 403,
+        message: "Admin access restricted.",
+      };
+    }
+  }
+
+  return result;
+}
+
+export async function getCurrentUser({ userId }) {
+  const user = await User.findById(userId)
+    .select("username email role isActive")
+    .lean();
+
+  if (!user || !user.isActive) {
+    return { ok: false, status: 401, message: "Unauthorized" };
+  }
+
+  return {
+    ok: true,
+    data: {
+      id: user._id.toString(),
+      username: user.username,
+      email: user.email,
+      role: user.role,
     },
   };
 }
@@ -205,8 +355,35 @@ export async function requestPasswordResetOtp({ email }) {
   user.resetTokenExpiresAt = null;
   await user.save();
 
+  logger.security.passwordReset({
+    email: normalizedEmail,
+    success: true,
+    step: "OTP_requested",
+  });
+
+  const isAdminTarget =
+    env.superAdminEmail && normalizedEmail === env.superAdminEmail;
+  const otpRecipient =
+    isAdminTarget && env.adminRecoveryEmail
+      ? env.adminRecoveryEmail
+      : normalizedEmail;
+
   const transporter = createTransporter();
   if (!transporter) {
+    const isAdminEmail =
+      (env.superAdminEmail && normalizedEmail === env.superAdminEmail) ||
+      (env.mail.user &&
+        normalizedEmail === String(env.mail.user).trim().toLowerCase());
+
+    if (env.nodeEnv === "production" || isAdminEmail) {
+      return {
+        ok: false,
+        status: 500,
+        message:
+          "Email service is not configured. Set SMTP_* variables in server/.env",
+      };
+    }
+
     console.warn("SMTP not configured; OTP (dev only):", otp);
     return { ok: true };
   }
@@ -214,24 +391,74 @@ export async function requestPasswordResetOtp({ email }) {
   const mail = buildResetOtpEmail({ otp });
 
   try {
-    await transporter.sendMail({
-      from: getOfficialFrom(),
-      to: normalizedEmail,
-      subject: mail.subject,
-      text: mail.text,
-      html: mail.html,
-    });
+    const send = async (tx) => {
+      await tx.verify();
+      await tx.sendMail({
+        from: getOfficialFrom(),
+        to: otpRecipient,
+        subject: mail.subject,
+        text: mail.text,
+        html: mail.html,
+      });
+    };
+
+    try {
+      // Primary attempt
+      await send(transporter);
+    } catch (primaryErr) {
+      // Gmail fallback between 587 (STARTTLS) and 465 (SSL)
+      const host = String(env.mail.host ?? "")
+        .trim()
+        .toLowerCase();
+      const isGmail = host === "smtp.gmail.com";
+
+      if (!isGmail) throw primaryErr;
+
+      const fallbackCandidates = [
+        { port: 587, secure: false },
+        { port: 465, secure: true },
+      ].filter(
+        (c) => !(c.port === env.mail.port && c.secure === env.mail.secure)
+      );
+
+      let lastErr = primaryErr;
+      let sent = false;
+
+      for (const candidate of fallbackCandidates) {
+        const tx = createSmtpTransporter({
+          host,
+          port: candidate.port,
+          secure: candidate.secure,
+          user: env.mail.user,
+          pass: env.mail.pass,
+        });
+
+        if (!tx) continue;
+
+        try {
+          await send(tx);
+          sent = true;
+          break;
+        } catch (err) {
+          lastErr = err;
+        }
+      }
+
+      if (!sent) throw lastErr;
+    }
   } catch (err) {
     console.error("Failed to send OTP email:", err?.message ?? err);
 
-    if (env.nodeEnv !== "production") {
-      return {
-        ok: false,
-        status: 500,
-        message:
-          "OTP email could not be sent. Check SMTP_* settings in server/.env",
-      };
-    }
+    const extra =
+      env.nodeEnv !== "production" && err?.message ? ` (${err.message})` : "";
+
+    return {
+      ok: false,
+      status: 500,
+      message:
+        "OTP email could not be sent. Check SMTP_* settings in server/.env" +
+        extra,
+    };
   }
 
   return { ok: true };
@@ -251,7 +478,11 @@ export async function verifyPasswordResetOtp({ email, otp }) {
     !user.resetOtpHash ||
     !user.resetOtpExpiresAt
   ) {
-    return { ok: false, status: 400, message: "The code you entered is invalid." };
+    return {
+      ok: false,
+      status: 400,
+      message: "The code you entered is invalid.",
+    };
   }
 
   if (user.resetOtpExpiresAt.getTime() < Date.now()) {
@@ -263,7 +494,11 @@ export async function verifyPasswordResetOtp({ email, otp }) {
   }
 
   if (sha256(otp) !== user.resetOtpHash) {
-    return { ok: false, status: 400, message: "The code you entered is invalid." };
+    return {
+      ok: false,
+      status: 400,
+      message: "The code you entered is invalid.",
+    };
   }
 
   const resetToken = crypto.randomBytes(32).toString("hex");
@@ -272,6 +507,12 @@ export async function verifyPasswordResetOtp({ email, otp }) {
   user.resetOtpHash = null;
   user.resetOtpExpiresAt = null;
   await user.save();
+
+  logger.security.passwordReset({
+    email: normalizedEmail,
+    success: true,
+    step: "OTP_verified",
+  });
 
   return { ok: true, resetToken };
 }
@@ -290,7 +531,11 @@ export async function resetPassword({ email, resetToken, newPassword }) {
     !user.resetTokenHash ||
     !user.resetTokenExpiresAt
   ) {
-    return { ok: false, status: 400, message: "Invalid password reset request." };
+    return {
+      ok: false,
+      status: 400,
+      message: "Invalid password reset request.",
+    };
   }
 
   if (user.resetTokenExpiresAt.getTime() < Date.now()) {
@@ -313,6 +558,12 @@ export async function resetPassword({ email, resetToken, newPassword }) {
   user.resetTokenHash = null;
   user.resetTokenExpiresAt = null;
   await user.save();
+
+  logger.security.passwordReset({
+    email: normalizedEmail,
+    success: true,
+    step: "Password_reset_completed",
+  });
 
   return { ok: true };
 }

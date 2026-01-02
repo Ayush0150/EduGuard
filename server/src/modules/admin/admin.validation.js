@@ -46,8 +46,24 @@ export const createUserSchema = z.object({
     .email("Enter a valid email"),
   password: strongPasswordSchema,
   role: z
-    .enum(["ADMIN", "SECURITY", "MAINTENANCE", "PRINCIPAL", "SUPER_ADMIN"])
+    .enum(["USER", "SECURITY", "MAINTENANCE", "PRINCIPAL"])
     .optional()
-    .default("ADMIN"),
+    .default("USER"),
   isActive: z.boolean().optional().default(true),
 });
+
+export const updateUserSchema = z
+  .object({
+    username: z
+      .string()
+      .trim()
+      .min(3, "Username must be at least 3 characters")
+      .optional(),
+    email: z.string().trim().email("Enter a valid email").optional(),
+    password: strongPasswordSchema.optional(),
+    role: z.enum(["USER", "SECURITY", "MAINTENANCE", "PRINCIPAL"]).optional(),
+    isActive: z.boolean().optional(),
+  })
+  .refine((val) => Object.keys(val).length > 0, {
+    message: "At least one field is required",
+  });

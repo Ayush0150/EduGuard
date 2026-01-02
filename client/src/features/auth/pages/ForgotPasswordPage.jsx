@@ -2,7 +2,14 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import adminImg from "../../../assets/admin-img.jpg";
 import collegeImg from "../../../assets/college-img.png";
-import { requestResetOtp, resetPassword, verifyResetOtp } from "../api/authApi";
+import {
+  requestAdminResetOtp,
+  requestResetOtp,
+  resetAdminPassword,
+  resetPassword,
+  verifyAdminResetOtp,
+  verifyResetOtp,
+} from "../api/authApi";
 import { AlertMessage } from "../components/AlertMessage";
 import { AuthLayout } from "../components/AuthLayout";
 import { FormInput } from "../components/FormInput";
@@ -102,8 +109,15 @@ export default function ForgotPasswordPage() {
 
     setBusy(true);
     try {
-      await requestResetOtp(email.trim());
-      setInfo("If the email exists, an OTP was sent.");
+      const trimmedEmail = email.trim();
+
+      if (isAdminRoute) {
+        await requestAdminResetOtp(trimmedEmail);
+        setInfo("A one-time code has been sent.");
+      } else {
+        await requestResetOtp(trimmedEmail);
+        setInfo("If the email exists, an OTP was sent.");
+      }
       setStep(2);
     } catch (err) {
       const mapped = applyServerFieldErrors(err);
@@ -137,10 +151,10 @@ export default function ForgotPasswordPage() {
 
     setBusy(true);
     try {
-      const data = await verifyResetOtp({
-        email: email.trim(),
-        otp: otp.trim(),
-      });
+      const payload = { email: email.trim(), otp: otp.trim() };
+      const data = isAdminRoute
+        ? await verifyAdminResetOtp(payload)
+        : await verifyResetOtp(payload);
       setResetToken(data.resetToken);
       setStep(3);
     } catch (err) {
@@ -203,7 +217,12 @@ export default function ForgotPasswordPage() {
 
     setBusy(true);
     try {
-      await resetPassword({ email: email.trim(), resetToken, newPassword });
+      const payload = { email: email.trim(), resetToken, newPassword };
+      if (isAdminRoute) {
+        await resetAdminPassword(payload);
+      } else {
+        await resetPassword(payload);
+      }
       setInfo("Password updated successfully. You can now log in.");
       setStep(4);
     } catch (err) {
