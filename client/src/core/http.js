@@ -52,7 +52,9 @@ http.interceptors.request.use(
     return config;
   },
   (error) => {
-    console.error("Request interceptor error:", error);
+    if (import.meta.env.DEV) {
+      console.error("Request interceptor error:", error);
+    }
     return Promise.reject(error);
   }
 );
@@ -73,11 +75,12 @@ http.interceptors.response.use(
 
     // Network error or timeout
     if (!status) {
-      console.error("Network error:", error.message);
+      if (import.meta.env.DEV) {
+        console.error("Network error:", error.message);
+      }
 
       // Don't show error for background requests
-      if (!config?.silent) {
-        // Could show a toast notification here
+      if (!config?.silent && import.meta.env.DEV) {
         console.error(
           "Connection failed. Please check your internet connection."
         );
@@ -114,12 +117,12 @@ http.interceptors.response.use(
     }
 
     // 429 Too Many Requests - Rate limiting
-    if (status === 429) {
+    if (status === 429 && import.meta.env.DEV) {
       console.warn("Rate limit exceeded. Please try again later.");
     }
 
     // 500+ Server errors
-    if (status >= 500) {
+    if (status >= 500 && import.meta.env.DEV) {
       console.error(
         "Server error occurred:",
         error.response?.data?.message || "Unknown error"

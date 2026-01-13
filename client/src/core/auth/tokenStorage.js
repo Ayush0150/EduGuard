@@ -86,7 +86,9 @@ export function setAuthSession({ token, user, remember = true }) {
     // Set session activity marker
     sessionStorage.setItem("eduguard_active", "true");
   } catch (error) {
-    console.error("Failed to store session:", error);
+    if (import.meta.env.DEV) {
+      console.error("Failed to store session:", error);
+    }
   }
 }
 
@@ -128,7 +130,9 @@ export function getAuthSession() {
 
     return { token: null, user: null, isValid: false };
   } catch (error) {
-    console.error("Failed to get session:", error);
+    if (import.meta.env.DEV) {
+      console.error("Failed to get session:", error);
+    }
     return { token: null, user: null, isValid: false };
   }
 }
@@ -169,7 +173,9 @@ export function updateSessionUser(user) {
       storage.setItem(AUTH_SESSION_KEY, JSON.stringify(sessionData));
     }
   } catch (error) {
-    console.error("Failed to update session user:", error);
+    if (import.meta.env.DEV) {
+      console.error("Failed to update session user:", error);
+    }
   }
 }
 
@@ -193,7 +199,9 @@ export function clearAuthSession() {
       window.dispatchEvent(new Event("eduguard:session-cleared"));
     }
   } catch (error) {
-    console.error("Failed to clear session:", error);
+    if (import.meta.env.DEV) {
+      console.error("Failed to clear session:", error);
+    }
   }
 }
 

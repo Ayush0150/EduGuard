@@ -1,3 +1,21 @@
+/**
+ * Main Application Component
+ *
+ * Features:
+ * - Lazy loading for optimal performance
+ * - Protected routes with role-based access control
+ * - Auto-redirect based on authentication state
+ * - Responsive loading states
+ *
+ * Route structure:
+ * - / → Redirects to /dashboard or /login based on auth
+ * - /login → Regular user login
+ * - /login/admin → Admin login (ADMIN/SUPER_ADMIN only)
+ * - /dashboard → Protected user dashboard
+ * - /admin → Protected admin dashboard
+ * - /forgot-password → Password reset flow
+ */
+
 import { lazy, Suspense, useEffect } from "react";
 import {
   Navigate,

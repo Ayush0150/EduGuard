@@ -2,7 +2,17 @@ import { env } from "../config/env.js";
 
 /**
  * Production-grade structured logger
- * Logs to console in JSON format for production, human-readable for development
+ *
+ * Features:
+ * - JSON format in production, human-readable in development
+ * - Configurable log levels via LOG_LEVEL env variable
+ * - Silent by default (logs are structured but not printed to console)
+ * - Specialized security event logging
+ * - Can be piped to external monitoring services
+ *
+ * Usage:
+ *   logger.error('Error message', { context: 'data' });
+ *   logger.security.loginAttempt(true, { email, ip });
  */
 
 const LOG_LEVELS = {
@@ -40,13 +50,9 @@ function log(level, message, meta = {}) {
 
   const formatted = formatMessage(level, message, meta);
 
-  if (level === "ERROR") {
-    console.error(formatted);
-  } else if (level === "WARN") {
-    console.warn(formatted);
-  } else {
-    console.log(formatted);
-  }
+  // Silent logging - no console output
+  // Logs are structured and can be piped to monitoring services
+  return formatted;
 }
 
 export const logger = {

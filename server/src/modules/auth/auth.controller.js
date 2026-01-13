@@ -9,6 +9,11 @@ import {
   verifyPasswordResetOtp,
 } from "./auth.service.js";
 
+/**
+ * Normalize email to lowercase and trim whitespace
+ * @param {string} email - Email address to normalize
+ * @returns {string} Normalized email
+ */
 function normalizeEmail(email) {
   return String(email ?? "")
     .trim()

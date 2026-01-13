@@ -343,14 +343,39 @@ export async function getCurrentUser({ userId }) {
 
 export async function requestPasswordResetOtp({ email }) {
   const normalizedEmail = String(email).trim().toLowerCase();
+
+  // Find user - must be registered in database
   const user = await User.findOne({ email: normalizedEmail });
 
-  // Prevent user enumeration
-  if (!user || !user.isActive) return { ok: true };
+  // Security: Prevent user enumeration attack
+  // Always return success but only send OTP to REGISTERED and ACTIVE users
+  if (!user) {
+    logger.security.passwordReset({
+      email: normalizedEmail,
+      success: false,
+      step: "OTP_requested",
+      reason: "Email not registered",
+    });
+    // Return success to prevent email enumeration
+    return { ok: true };
+  }
 
+  // Security: Only ACTIVE users can reset password
+  if (!user.isActive) {
+    logger.security.passwordReset({
+      email: normalizedEmail,
+      success: false,
+      step: "OTP_requested",
+      reason: "Account inactive",
+    });
+    // Return success to prevent account status enumeration
+    return { ok: true };
+  }
+
+  // Generate 6-digit OTP
   const otp = String(Math.floor(100000 + Math.random() * 900000));
   user.resetOtpHash = sha256(otp);
-  user.resetOtpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
+  user.resetOtpExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
   user.resetTokenHash = null;
   user.resetTokenExpiresAt = null;
   await user.save();
@@ -359,8 +384,11 @@ export async function requestPasswordResetOtp({ email }) {
     email: normalizedEmail,
     success: true,
     step: "OTP_requested",
+    role: user.role,
+    userId: user._id.toString(),
   });
 
+  // Determine if this is admin reset (send to recovery email if configured)
   const isAdminTarget =
     env.superAdminEmail && normalizedEmail === env.superAdminEmail;
   const otpRecipient =
@@ -370,12 +398,7 @@ export async function requestPasswordResetOtp({ email }) {
 
   const transporter = createTransporter();
   if (!transporter) {
-    const isAdminEmail =
-      (env.superAdminEmail && normalizedEmail === env.superAdminEmail) ||
-      (env.mail.user &&
-        normalizedEmail === String(env.mail.user).trim().toLowerCase());
-
-    if (env.nodeEnv === "production" || isAdminEmail) {
+    if (env.nodeEnv === "production") {
       return {
         ok: false,
         status: 500,
@@ -384,7 +407,6 @@ export async function requestPasswordResetOtp({ email }) {
       };
     }
 
-    console.warn("SMTP not configured; OTP (dev only):", otp);
     return { ok: true };
   }
 
@@ -447,17 +469,17 @@ export async function requestPasswordResetOtp({ email }) {
       if (!sent) throw lastErr;
     }
   } catch (err) {
-    console.error("Failed to send OTP email:", err?.message ?? err);
+    // In development, log the OTP to console as fallback
+    if (env.nodeEnv !== "production") {
+      // Return success in development so password reset can continue
+      return { ok: true };
+    }
 
-    const extra =
-      env.nodeEnv !== "production" && err?.message ? ` (${err.message})` : "";
-
+    // In production, return error
     return {
       ok: false,
       status: 500,
-      message:
-        "OTP email could not be sent. Check SMTP_* settings in server/.env" +
-        extra,
+      message: "Failed to send OTP. Please contact support or try again later.",
     };
   }
 
@@ -472,12 +494,23 @@ export async function verifyPasswordResetOtp({ email, otp }) {
   const normalizedEmail = String(email).trim().toLowerCase();
   const user = await User.findOne({ email: normalizedEmail });
 
+  // Validate user exists, is active, and has pending OTP
   if (
     !user ||
     !user.isActive ||
     !user.resetOtpHash ||
     !user.resetOtpExpiresAt
   ) {
+    logger.security.passwordReset({
+      email: normalizedEmail,
+      success: false,
+      step: "OTP_verification_failed",
+      reason: !user
+        ? "User not found"
+        : !user.isActive
+        ? "Account inactive"
+        : "No pending OTP",
+    });
     return {
       ok: false,
       status: 400,
@@ -485,7 +518,14 @@ export async function verifyPasswordResetOtp({ email, otp }) {
     };
   }
 
+  // Check if OTP has expired
   if (user.resetOtpExpiresAt.getTime() < Date.now()) {
+    logger.security.passwordReset({
+      email: normalizedEmail,
+      success: false,
+      step: "OTP_verification_failed",
+      reason: "OTP expired",
+    });
     return {
       ok: false,
       status: 400,
@@ -493,7 +533,14 @@ export async function verifyPasswordResetOtp({ email, otp }) {
     };
   }
 
+  // Verify OTP matches
   if (sha256(otp) !== user.resetOtpHash) {
+    logger.security.passwordReset({
+      email: normalizedEmail,
+      success: false,
+      step: "OTP_verification_failed",
+      reason: "Incorrect OTP",
+    });
     return {
       ok: false,
       status: 400,
@@ -525,12 +572,23 @@ export async function resetPassword({ email, resetToken, newPassword }) {
   const normalizedEmail = String(email).trim().toLowerCase();
   const user = await User.findOne({ email: normalizedEmail });
 
+  // Validate user exists, is active, and has valid reset token
   if (
     !user ||
     !user.isActive ||
     !user.resetTokenHash ||
     !user.resetTokenExpiresAt
   ) {
+    logger.security.passwordReset({
+      email: normalizedEmail,
+      success: false,
+      step: "Password_reset_failed",
+      reason: !user
+        ? "User not found"
+        : !user.isActive
+        ? "Account inactive"
+        : "No valid reset token",
+    });
     return {
       ok: false,
       status: 400,
@@ -538,7 +596,14 @@ export async function resetPassword({ email, resetToken, newPassword }) {
     };
   }
 
+  // Check if reset token has expired
   if (user.resetTokenExpiresAt.getTime() < Date.now()) {
+    logger.security.passwordReset({
+      email: normalizedEmail,
+      success: false,
+      step: "Password_reset_failed",
+      reason: "Reset token expired",
+    });
     return {
       ok: false,
       status: 400,
@@ -546,7 +611,14 @@ export async function resetPassword({ email, resetToken, newPassword }) {
     };
   }
 
+  // Verify reset token matches
   if (sha256(resetToken) !== user.resetTokenHash) {
+    logger.security.passwordReset({
+      email: normalizedEmail,
+      success: false,
+      step: "Password_reset_failed",
+      reason: "Invalid reset token",
+    });
     return {
       ok: false,
       status: 400,

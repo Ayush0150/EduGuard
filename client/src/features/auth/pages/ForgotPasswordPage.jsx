@@ -113,10 +113,14 @@ export default function ForgotPasswordPage() {
 
       if (isAdminRoute) {
         await requestAdminResetOtp(trimmedEmail);
-        setInfo("A one-time code has been sent.");
+        setInfo(
+          "A one-time password (OTP) has been sent to your email. Please check your inbox and spam folder."
+        );
       } else {
         await requestResetOtp(trimmedEmail);
-        setInfo("If the email exists, an OTP was sent.");
+        setInfo(
+          "If this email is registered, a one-time password (OTP) has been sent. Please check your inbox and spam folder."
+        );
       }
       setStep(2);
     } catch (err) {
@@ -126,7 +130,7 @@ export default function ForgotPasswordPage() {
         setError(
           firstFieldError ||
             err?.response?.data?.message ||
-            "Failed to request OTP"
+            "Unable to send OTP. Please check your email address and try again."
         );
       }
     } finally {
@@ -162,7 +166,9 @@ export default function ForgotPasswordPage() {
       if (!mapped) {
         const firstFieldError = err?.response?.data?.errors?.[0]?.message;
         setError(
-          firstFieldError || err?.response?.data?.message || "Invalid OTP"
+          firstFieldError ||
+            err?.response?.data?.message ||
+            "The OTP you entered is invalid or has expired. Please request a new one."
         );
       }
     } finally {
@@ -186,32 +192,42 @@ export default function ForgotPasswordPage() {
     }
     if (!passwordRules.min) {
       setFieldErrors({
-        newPassword: "Password must be at least 8 characters.",
+        newPassword: "Password must be at least 8 characters long.",
       });
       return;
     }
     if (!passwordRules.lower) {
       setFieldErrors({
-        newPassword: "Password must include a lowercase letter.",
+        newPassword:
+          "Password must include at least one lowercase letter (a-z).",
       });
       return;
     }
     if (!passwordRules.upper) {
       setFieldErrors({
-        newPassword: "Password must include an uppercase letter.",
+        newPassword:
+          "Password must include at least one uppercase letter (A-Z).",
       });
       return;
     }
     if (!passwordRules.number) {
-      setFieldErrors({ newPassword: "Password must include a number." });
+      setFieldErrors({
+        newPassword: "Password must include at least one number (0-9).",
+      });
       return;
     }
     if (!passwordRules.symbol) {
-      setFieldErrors({ newPassword: "Password must include a symbol." });
+      setFieldErrors({
+        newPassword:
+          "Password must include at least one special character (!@#$%^&*).",
+      });
       return;
     }
     if (newPassword !== confirmPassword) {
-      setFieldErrors({ confirmPassword: "Passwords do not match." });
+      setFieldErrors({
+        confirmPassword:
+          "The passwords you entered do not match. Please try again.",
+      });
       return;
     }
 
@@ -223,7 +239,9 @@ export default function ForgotPasswordPage() {
       } else {
         await resetPassword(payload);
       }
-      setInfo("Password updated successfully. You can now log in.");
+      setInfo(
+        "Your password has been reset successfully! You can now log in with your new password."
+      );
       setStep(4);
     } catch (err) {
       const mapped = applyServerFieldErrors(err);
@@ -232,7 +250,7 @@ export default function ForgotPasswordPage() {
         setError(
           firstFieldError ||
             err?.response?.data?.message ||
-            "Failed to reset password"
+            "Unable to reset password. Please try again or request a new OTP."
         );
       }
     } finally {
@@ -300,9 +318,15 @@ export default function ForgotPasswordPage() {
         </div>
 
         {step === 4 && (
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            Completed. You can now log in.
-          </p>
+          <div className="rounded-lg border border-green-200 bg-green-50 p-4 dark:border-green-900 dark:bg-green-950/30">
+            <p className="text-sm font-medium text-green-800 dark:text-green-200">
+              ✓ Password Reset Complete
+            </p>
+            <p className="mt-1 text-xs text-green-700 dark:text-green-300">
+              Your password has been successfully updated. You can now log in
+              with your new credentials.
+            </p>
+          </div>
         )}
 
         <AlertMessage type="error" message={error} />
@@ -353,7 +377,7 @@ export default function ForgotPasswordPage() {
               inputMode="numeric"
               maxLength={6}
               autoComplete="one-time-code"
-              helpText="OTP expires in 10 minutes."
+              helpText="Please enter the 6-digit code sent to your email. The code expires in 10 minutes."
             />
             <SubmitButton disabled={!canVerify} busy={busy}>
               Verify OTP
@@ -383,7 +407,7 @@ export default function ForgotPasswordPage() {
               placeholder="Use a strong password"
               error={fieldErrors.newPassword}
               autoComplete="new-password"
-              helpText="Must include: 8+ chars, uppercase, lowercase, number, symbol."
+              helpText="Use a strong password with at least 8 characters, including uppercase, lowercase, numbers, and special characters."
             />
             <PasswordInput
               id="confirmPassword"

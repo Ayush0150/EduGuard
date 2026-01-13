@@ -2,21 +2,34 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
+/**
+ * Require an environment variable - throws if not set
+ * @param {string} name - Environment variable name
+ * @returns {string} Environment variable value
+ * @throws {Error} If environment variable is not set
+ */
 function requireEnv(name) {
   const value = process.env[name];
   if (!value) throw new Error(`Missing required env var: ${name}`);
   return value;
 }
 
+/**
+ * Get and validate NODE_ENV
+ * @returns {string} Validated environment (development|production|test)
+ */
 function getNodeEnv() {
   const nodeEnv = process.env.NODE_ENV ?? "development";
   if (!["development", "production", "test"].includes(nodeEnv)) {
-    console.warn(`Invalid NODE_ENV: ${nodeEnv}, defaulting to development`);
     return "development";
   }
   return nodeEnv;
 }
 
+/**
+ * Centralized environment configuration
+ * All environment variables are loaded and validated here
+ */
 export const env = {
   nodeEnv: getNodeEnv(),
   isProduction: getNodeEnv() === "production",

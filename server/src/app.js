@@ -5,10 +5,26 @@ import helmet from "helmet";
 import { env } from "./core/config/env.js";
 import { errorHandler } from "./core/middlewares/errorHandler.js";
 import { notFound } from "./core/middlewares/notFound.js";
+import { sanitizeInput } from "./core/middlewares/sanitize.js";
 import { logger } from "./core/utils/logger.js";
 import { adminRouter } from "./modules/admin/admin.routes.js";
 import { authRouter } from "./modules/auth/auth.routes.js";
 
+/**
+ * Create and configure Express application
+ *
+ * Middleware stack:
+ * 1. Security headers (helmet)
+ * 2. CORS configuration
+ * 3. Body parsing (express.json)
+ * 4. Input sanitization (XSS prevention)
+ * 5. Request logging (development only)
+ * 6. API routes
+ * 7. 404 handler
+ * 8. Global error handler
+ *
+ * @returns {Express} Configured Express application
+ */
 export function createApp() {
   const app = express();
 
@@ -51,7 +67,10 @@ export function createApp() {
 
   app.use(express.json({ limit: "1mb" }));
 
-  // Request logging middleware (only in development, or structured in production)
+  // Sanitize all inputs to prevent XSS and injection attacks
+  app.use(sanitizeInput);
+
+  // Request logging middleware (only in development)
   if (!env.isProduction) {
     app.use((req, res, next) => {
       const start = Date.now();

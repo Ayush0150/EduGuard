@@ -6,8 +6,9 @@ import {
   getAuthSession,
   setAuthSession,
 } from "../../../core/auth/tokenStorage";
+import { toast } from "../../../core/utils/toastEmitter";
+import { validateIdentifier } from "../../../core/utils/validation";
 import { adminLogin } from "../api/authApi";
-import { AlertMessage } from "../components/AlertMessage";
 import { AuthLayout } from "../components/AuthLayout";
 import { FormInput } from "../components/FormInput";
 import { PasswordInput } from "../components/PasswordInput";
@@ -19,27 +20,12 @@ export default function AdminLoginPage() {
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
   const [fieldErrors, setFieldErrors] = useState({});
 
-  const canSubmit = useMemo(() => {
-    return identifier.trim() && password;
-  }, [identifier, password]);
-
-  useEffect(() => {
-    if (error) {
-      const timer = setTimeout(() => setError(""), 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [error]);
-
-  useEffect(() => {
-    if (success) {
-      const timer = setTimeout(() => setSuccess(""), 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [success]);
+  const canSubmit = useMemo(
+    () => identifier.trim().length > 0 && password.length > 0,
+    [identifier, password]
+  );
 
   useEffect(() => {
     const { token, user, isValid } = getAuthSession();
@@ -55,53 +41,49 @@ export default function AdminLoginPage() {
 
   async function onSubmit(e) {
     e.preventDefault();
-    setError("");
     setFieldErrors({});
 
-    const trimmedIdentifier = identifier.trim();
-    if (!trimmedIdentifier) {
-      setFieldErrors({ identifier: "Email or username is required." });
-      return;
+    // Client-side validation - only check if fields are provided
+    const identifierValidation = validateIdentifier(identifier);
+
+    const errors = {};
+    if (!identifierValidation.valid) {
+      errors.identifier = identifierValidation.error;
     }
-    if (!password) {
-      setFieldErrors({ password: "Password is required." });
+    if (!password || password.trim().length === 0) {
+      errors.password = "Please enter your password";
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
       return;
     }
 
     setBusy(true);
     try {
-      const payload = { identifier: trimmedIdentifier, password, remember };
+      const payload = {
+        identifier: identifierValidation.value,
+        password: password,
+        remember,
+      };
       const data = await adminLogin(payload);
 
-      // Store session with user data
       setAuthSession({ token: data.token, user: data.user, remember });
-
-      setError("");
       setFieldErrors({});
-      setSuccess("Login successful! Redirecting...");
+      toast.success("Welcome! Redirecting to admin panel...");
 
-      // Use window.location for clean navigation (prevents state issues)
       setTimeout(() => {
         window.location.replace("/admin");
       }, 500);
-    } catch (err) {
-      const serverErrors = err?.response?.data?.errors;
-      if (Array.isArray(serverErrors) && serverErrors.length) {
-        const nextFieldErrors = {};
-        for (const item of serverErrors) {
-          const key = Array.isArray(item?.path) ? item.path[0] : item?.path;
-          if (typeof key === "string" && !nextFieldErrors[key]) {
-            nextFieldErrors[key] = item?.message;
-          }
-        }
-        if (Object.keys(nextFieldErrors).length)
-          setFieldErrors(nextFieldErrors);
-      }
+    } catch {
+      // Don't show field-level errors for login to prevent user enumeration
+      // Show generic error message only
+      setFieldErrors({});
 
-      const firstFieldError = serverErrors?.[0]?.message;
-      const message =
-        firstFieldError || err?.response?.data?.message || "Login failed";
-      setError(message);
+      // Always show same message for security - don't reveal if user exists
+      toast.error(
+        "Invalid email or password. Please check your credentials and try again."
+      );
     } finally {
       setBusy(false);
     }
@@ -121,7 +103,6 @@ export default function AdminLoginPage() {
           value={identifier}
           onChange={(e) => {
             setIdentifier(e.target.value);
-            if (error) setError("");
             if (fieldErrors.identifier)
               setFieldErrors((prev) => ({ ...prev, identifier: "" }));
           }}
@@ -137,7 +118,6 @@ export default function AdminLoginPage() {
           value={password}
           onChange={(e) => {
             setPassword(e.target.value);
-            if (error) setError("");
             if (fieldErrors.password)
               setFieldErrors((prev) => ({ ...prev, password: "" }));
           }}
@@ -164,9 +144,6 @@ export default function AdminLoginPage() {
             Forgot your password?
           </Link>
         </div>
-
-        <AlertMessage type="error" message={error} />
-        <AlertMessage type="success" message={success} />
 
         <SubmitButton disabled={!canSubmit} busy={busy}>
           Log In

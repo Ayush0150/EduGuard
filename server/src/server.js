@@ -3,6 +3,16 @@ import { env } from "./core/config/env.js";
 import { connectMongo } from "./core/db/connectMongo.js";
 import { logger } from "./core/utils/logger.js";
 
+/**
+ * Main server initialization function
+ *
+ * 1. Connects to MongoDB
+ * 2. Creates Express app with all middleware
+ * 3. Starts HTTP server
+ * 4. Logs startup information
+ *
+ * @throws {Error} If MongoDB connection or server startup fails
+ */
 async function main() {
   logger.info("Starting EduGuard API server", {
     nodeEnv: env.nodeEnv,

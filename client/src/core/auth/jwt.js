@@ -23,7 +23,9 @@ function base64UrlDecode(value) {
         .join("")
     );
   } catch (error) {
-    console.error("Base64 decode error:", error);
+    if (import.meta.env.DEV) {
+      console.error("Base64 decode error:", error);
+    }
     return null;
   }
 }
@@ -44,7 +46,9 @@ export function decodeJwt(token) {
     const payload = JSON.parse(payloadJson);
     return payload;
   } catch (error) {
-    console.error("JWT decode error:", error);
+    if (import.meta.env.DEV) {
+      console.error("JWT decode error:", error);
+    }
     return null;
   }
 }
