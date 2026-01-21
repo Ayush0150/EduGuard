@@ -3,21 +3,36 @@ import { User } from "../../modules/users/user.model.js";
 import { env } from "../config/env.js";
 import { logger } from "../utils/logger.js";
 
+/* =====================================================
+   Helpers
+===================================================== */
+
 /**
  * Extract Bearer token from Authorization header
  */
 function getBearerToken(req) {
-  const authHeader = req.headers?.authorization;
-  if (!authHeader || typeof authHeader !== "string") return null;
+  const header = req.headers?.authorization;
 
-  const [scheme, token] = authHeader.split(" ");
+  if (!header || typeof header !== "string") return null;
+
+  const [scheme, token] = header.split(" ");
+
   if (scheme !== "Bearer" || !token || token === "null") return null;
 
   return token;
 }
 
+/* =====================================================
+   Authentication Middleware
+===================================================== */
+
 /**
- * Authentication middleware - verifies JWT and ensures user is active
+ * requireAuth
+ * -----------
+ * Verifies JWT access token and ensures:
+ * - Token is valid
+ * - User exists
+ * - User is active
  */
 export async function requireAuth(req, res, next) {
   const token = getBearerToken(req);
@@ -25,9 +40,10 @@ export async function requireAuth(req, res, next) {
   if (!token) {
     logger.security.unauthorizedAccess({
       ip: req.ip,
-      path: req.path,
-      reason: "No token provided",
+      path: req.originalUrl,
+      reason: "Missing access token",
     });
+
     return res.status(401).json({
       success: false,
       message: "Unauthorized",
@@ -37,38 +53,41 @@ export async function requireAuth(req, res, next) {
   try {
     const payload = jwt.verify(token, env.jwtSecret);
 
-    const userId = payload?.id || payload?.userId || payload?.sub;
+    // Support multiple token formats
+    const userId = payload?.sub || payload?.userId || payload?.id;
 
     if (!userId) {
       logger.security.unauthorizedAccess({
         ip: req.ip,
-        path: req.path,
-        reason: "Invalid token payload",
+        path: req.originalUrl,
+        reason: "Invalid JWT payload",
       });
+
       return res.status(401).json({
         success: false,
         message: "Unauthorized",
       });
     }
 
-    // Verify user exists and is active
     const user = await User.findById(userId)
-      .select("isActive role email")
+      .select("role email isActive")
       .lean();
 
     if (!user || !user.isActive) {
       logger.security.unauthorizedAccess({
         ip: req.ip,
-        path: req.path,
+        path: req.originalUrl,
         userId,
-        reason: "Inactive or non-existent user",
+        reason: "User not found or inactive",
       });
+
       return res.status(401).json({
         success: false,
         message: "Account is inactive or does not exist",
       });
     }
 
+    // Attach safe user context
     req.user = {
       id: userId,
       role: user.role,
@@ -76,12 +95,13 @@ export async function requireAuth(req, res, next) {
     };
 
     next();
-  } catch (err) {
+  } catch (error) {
     logger.security.unauthorizedAccess({
       ip: req.ip,
-      path: req.path,
-      reason: err.message,
+      path: req.originalUrl,
+      reason: error.message,
     });
+
     return res.status(401).json({
       success: false,
       message: "Unauthorized",
@@ -89,9 +109,17 @@ export async function requireAuth(req, res, next) {
   }
 }
 
+/* =====================================================
+   Role Authorization
+===================================================== */
+
 /**
- * Role-based authorization middleware
- * Usage: requireRole("ADMIN", "SUPER_ADMIN")
+ * requireRole
+ * -----------
+ * Role-based authorization
+ *
+ * Usage:
+ *   requireRole("ADMIN", "SUPER_ADMIN")
  */
 export function requireRole(...roles) {
   const allowedRoles = new Set(roles);
@@ -100,21 +128,29 @@ export function requireRole(...roles) {
     if (!req.user || !allowedRoles.has(req.user.role)) {
       logger.security.unauthorizedAccess({
         ip: req.ip,
-        path: req.path,
+        path: req.originalUrl,
         userId: req.user?.id,
         reason: `Insufficient role: ${req.user?.role}`,
       });
+
       return res.status(403).json({
         success: false,
-        message: "Forbidden: Insufficient permissions",
+        message: "Forbidden: insufficient permissions",
       });
     }
+
     next();
   };
 }
 
+/* =====================================================
+   Non-Admin Guard
+===================================================== */
+
 /**
- * Middleware to ensure only non-admin users (USER, SECURITY, MAINTENANCE, PRINCIPAL)
+ * requireNonAdminUser
+ * -------------------
+ * Blocks ADMIN / SUPER_ADMIN from accessing user routes
  */
 export function requireNonAdminUser(req, res, next) {
   const role = req.user?.role;
@@ -122,13 +158,14 @@ export function requireNonAdminUser(req, res, next) {
   if (role === "ADMIN" || role === "SUPER_ADMIN") {
     logger.security.unauthorizedAccess({
       ip: req.ip,
-      path: req.path,
+      path: req.originalUrl,
       userId: req.user?.id,
-      reason: "Admin attempted to access user route",
+      reason: "Admin attempted to access user-only route",
     });
+
     return res.status(403).json({
       success: false,
-      message: "Admins cannot access user routes. Please use admin routes.",
+      message: "Admins must use admin routes",
     });
   }
 

@@ -1,26 +1,69 @@
-let toastId = 0;
+/**
+ * Toast Emitter
+ * -------------
+ * Lightweight event-based notification system.
+ *
+ * Framework-agnostic (no React dependency).
+ * Designed to be consumed by ToastContainer.
+ */
 
-const toastEmitter = {
-  listeners: [],
+let toastId = Date.now();
+
+/* ---------------------------------------------------
+   Internal listeners
+--------------------------------------------------- */
+
+const listeners = new Set();
+
+/* ---------------------------------------------------
+   Emitter
+--------------------------------------------------- */
+
+export const toastEmitter = {
   subscribe(listener) {
-    this.listeners.push(listener);
+    if (typeof listener !== "function") return () => {};
+
+    listeners.add(listener);
+
     return () => {
-      this.listeners = this.listeners.filter((l) => l !== listener);
+      listeners.delete(listener);
     };
   },
-  emit(toast) {
-    this.listeners.forEach((listener) => listener(toast));
+
+  emit(payload) {
+    listeners.forEach((listener) => {
+      try {
+        listener(payload);
+      } catch (err) {
+        // Prevent one broken listener from breaking others
+      }
+    });
   },
 };
 
-export function toast(message, type = "info") {
-  const id = ++toastId;
-  toastEmitter.emit({ id, message, type });
+/* ---------------------------------------------------
+   Public API
+--------------------------------------------------- */
+
+export function toast(message, type = "info", options = {}) {
+  if (!message) return;
+
+  toastEmitter.emit({
+    id: ++toastId,
+    message: String(message),
+    type,
+    ...options,
+  });
 }
 
-toast.success = (message) => toast(message, "success");
-toast.error = (message) => toast(message, "error");
-toast.info = (message) => toast(message, "info");
-toast.warning = (message) => toast(message, "warning");
+/* ---------------------------------------------------
+   Shortcut helpers
+--------------------------------------------------- */
 
-export { toastEmitter };
+toast.success = (message, options) => toast(message, "success", options);
+
+toast.error = (message, options) => toast(message, "error", options);
+
+toast.info = (message, options) => toast(message, "info", options);
+
+toast.warning = (message, options) => toast(message, "warning", options);

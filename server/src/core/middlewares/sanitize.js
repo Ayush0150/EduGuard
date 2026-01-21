@@ -1,122 +1,132 @@
 /**
- * Server-side input sanitization middleware
- * Prevents XSS and injection attacks
+ * =====================================================
+ * Server-side Input Sanitization Middleware
+ * =====================================================
+ *
+ * Purpose:
+ * - Prevent XSS attacks
+ * - Prevent injection payloads
+ * - Limit input size (DoS protection)
+ *
+ * IMPORTANT:
+ * - Does NOT validate input (Zod does that)
+ * - Does NOT escape HTML (API is not a renderer)
+ * - Sanitizes values ONLY (never keys)
  */
 
-/**
- * Sanitize string input
- */
+/* -----------------------------------------------------
+   Constants
+----------------------------------------------------- */
+
+const MAX_STRING_LENGTH = 1000;
+
+/* -----------------------------------------------------
+   String Sanitization
+----------------------------------------------------- */
+
 function sanitizeString(value) {
   if (typeof value !== "string") return value;
 
   return value
     .trim()
-    .replace(/[<>]/g, "") // Remove angle brackets to prevent XSS
-    .replace(/javascript:/gi, "") // Remove javascript: protocol
-    .replace(/on\w+=/gi, "") // Remove event handlers
-    .substring(0, 10000); // Limit length to prevent DoS
+    .replace(/[<>]/g, "") // prevent HTML tags
+    .replace(/javascript:/gi, "") // protocol injection
+    .slice(0, MAX_STRING_LENGTH);
 }
 
-/**
- * Deep sanitize object
- */
-function sanitizeObject(obj) {
-  if (obj === null || obj === undefined) return obj;
+/* -----------------------------------------------------
+   Recursive Sanitizer
+----------------------------------------------------- */
 
-  if (Array.isArray(obj)) {
-    return obj.map((item) => sanitizeObject(item));
+function sanitizeValue(value) {
+  if (typeof value === "string") {
+    return sanitizeString(value);
   }
 
-  if (typeof obj === "object") {
-    const sanitized = {};
-    for (const [key, value] of Object.entries(obj)) {
-      // Sanitize key as well
-      const cleanKey = sanitizeString(key);
-      sanitized[cleanKey] = sanitizeObject(value);
+  if (Array.isArray(value)) {
+    return value.map(sanitizeValue);
+  }
+
+  if (value && typeof value === "object") {
+    const cleaned = {};
+    for (const [key, val] of Object.entries(value)) {
+      cleaned[key] = sanitizeValue(val);
     }
-    return sanitized;
+    return cleaned;
   }
 
-  if (typeof obj === "string") {
-    return sanitizeString(obj);
-  }
-
-  return obj;
+  return value;
 }
 
-/**
- * Middleware to sanitize request body, query, and params
- */
+/* -----------------------------------------------------
+   Express Middleware
+----------------------------------------------------- */
+
 export function sanitizeInput(req, res, next) {
-  // Sanitize body (can be reassigned)
-  if (req.body && typeof req.body === "object") {
-    req.body = sanitizeObject(req.body);
+  if (req.body) {
+    req.body = sanitizeValue(req.body);
   }
 
-  // Sanitize query (need to modify in place for Express 5)
-  if (req.query && typeof req.query === "object") {
-    const sanitized = sanitizeObject(req.query);
-    Object.keys(req.query).forEach((key) => delete req.query[key]);
-    Object.assign(req.query, sanitized);
+  if (req.query) {
+    const sanitizedQuery = sanitizeValue(req.query);
+    if (sanitizedQuery && typeof sanitizedQuery === "object") {
+      Object.keys(req.query).forEach((key) => {
+        delete req.query[key];
+      });
+      Object.assign(req.query, sanitizedQuery);
+    }
   }
 
-  // Sanitize params (need to modify in place for Express 5)
-  if (req.params && typeof req.params === "object") {
-    const sanitized = sanitizeObject(req.params);
-    Object.keys(req.params).forEach((key) => delete req.params[key]);
-    Object.assign(req.params, sanitized);
+  if (req.params) {
+    const sanitizedParams = sanitizeValue(req.params);
+    if (sanitizedParams && typeof sanitizedParams === "object") {
+      Object.keys(req.params).forEach((key) => {
+        delete req.params[key];
+      });
+      Object.assign(req.params, sanitizedParams);
+    }
   }
 
   next();
 }
 
+/* -----------------------------------------------------
+   Helpers
+----------------------------------------------------- */
+
 /**
- * Normalize email to lowercase and trim
+ * Normalize email input
  */
 export function normalizeEmail(email) {
-  if (!email || typeof email !== "string") return email;
+  if (typeof email !== "string") return email;
   return email.trim().toLowerCase();
 }
 
 /**
- * Validate and sanitize MongoDB ObjectId
+ * Validate MongoDB ObjectId
  */
 export function sanitizeObjectId(id) {
-  if (!id || typeof id !== "string") return null;
+  if (typeof id !== "string") return null;
 
-  const sanitized = id.trim();
-
-  // MongoDB ObjectId is exactly 24 hex characters
-  if (!/^[0-9a-fA-F]{24}$/.test(sanitized)) {
-    return null;
-  }
-
-  return sanitized;
+  const value = id.trim();
+  return /^[0-9a-fA-F]{24}$/.test(value) ? value : null;
 }
 
 /**
- * Remove sensitive fields from user object before sending to client
+ * Remove sensitive fields before response
  */
 export function sanitizeUserOutput(user) {
-  if (!user) return null;
+  if (!user || typeof user !== "object") return null;
 
-  const sanitized = { ...user };
+  const {
+    passwordHash,
+    resetOtpHash,
+    resetOtpExpiresAt,
+    resetTokenHash,
+    resetTokenExpiresAt,
+    __v,
+    ...safe
+  } = user;
 
-  // Remove sensitive fields
-  delete sanitized.passwordHash;
-  delete sanitized.resetOtpHash;
-  delete sanitized.resetOtpExpiresAt;
-  delete sanitized.resetTokenHash;
-  delete sanitized.resetTokenExpiresAt;
-  delete sanitized.__v;
-
-  return sanitized;
-}
-
-/**
- * Limit string length to prevent DoS
- */
-export function limitLength(value, maxLength = 1000) {
-  if (typeof value !== "string") return value;
-  return value.substring(0, maxLength);
+  return safe;
 }

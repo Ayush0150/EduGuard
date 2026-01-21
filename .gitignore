@@ -27,7 +27,13 @@ coverage/
 
 # env files (do not commit secrets)
 .env
-.env.*
+.env.local
+.env.*.local
+server/.env
+client/.env
+# Keep .env.example files for documentation
+!.env.example
+!**/.env.example
 
 # OS / editor
 .DS_Store

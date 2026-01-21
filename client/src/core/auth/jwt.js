@@ -1,107 +1,101 @@
 /**
- * JWT Utilities - Production Grade
+ * JWT Utilities
+ * -------------
+ * Handles decoding, validation, expiration checks,
+ * and safe user extraction from JWT tokens.
  *
- * Handles JWT decoding, validation, and expiry checks
- * with proper error handling and security considerations
+ * Frontend-safe (no secret required).
  */
+
+/* ---------------------------------------------------
+   Internal Helpers
+--------------------------------------------------- */
 
 /**
- * Decode base64url string to JSON
+ * Safely decode Base64URL string
  */
 function base64UrlDecode(value) {
-  if (!value || typeof value !== "string") return null;
+  if (typeof value !== "string") return null;
 
   try {
-    const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
-    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+    const base64 = value.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
     const decoded = atob(padded);
 
     return decodeURIComponent(
       decoded
         .split("")
-        .map((c) => `%${c.charCodeAt(0).toString(16).padStart(2, "0")}`)
+        .map((char) => `%${char.charCodeAt(0).toString(16).padStart(2, "0")}`)
         .join("")
     );
-  } catch (error) {
-    if (import.meta.env.DEV) {
-      console.error("Base64 decode error:", error);
-    }
+  } catch (err) {
     return null;
   }
 }
 
+/* ---------------------------------------------------
+   Public API
+--------------------------------------------------- */
+
 /**
- * Decode JWT token and extract payload
+ * Decode JWT payload
  */
 export function decodeJwt(token) {
-  if (!token || typeof token !== "string") return null;
+  if (typeof token !== "string") return null;
 
   try {
-    const parts = token.split(".");
-    if (parts.length !== 3) return null;
+    const [, payload] = token.split(".");
+    if (!payload) return null;
 
-    const payloadJson = base64UrlDecode(parts[1]);
-    if (!payloadJson) return null;
-
-    const payload = JSON.parse(payloadJson);
-    return payload;
-  } catch (error) {
-    if (import.meta.env.DEV) {
-      console.error("JWT decode error:", error);
-    }
+    const json = base64UrlDecode(payload);
+    return json ? JSON.parse(json) : null;
+  } catch (err) {
     return null;
   }
 }
 
 /**
- * Check if JWT token is expired
- * @param {string} token - JWT token
- * @param {number} skewSeconds - Clock skew tolerance in seconds
- * @returns {boolean} True if expired or invalid
+ * Check whether JWT is expired
  */
 export function isJwtExpired(token, skewSeconds = 30) {
-  if (!token) return true;
-
   const payload = decodeJwt(token);
-  if (!payload) return true;
+  if (!payload?.exp) return true;
 
-  const exp = payload.exp;
-  if (!exp || typeof exp !== "number") return true;
-
-  const nowSeconds = Math.floor(Date.now() / 1000);
-  return exp <= nowSeconds - skewSeconds;
+  const currentTime = Math.floor(Date.now() / 1000);
+  return payload.exp <= currentTime - skewSeconds;
 }
 
 /**
- * Get time until token expiration in seconds
+ * Seconds remaining before token expiry
  */
 export function getTokenExpiryTime(token) {
   const payload = decodeJwt(token);
   if (!payload?.exp) return 0;
 
-  const nowSeconds = Math.floor(Date.now() / 1000);
-  return Math.max(0, payload.exp - nowSeconds);
+  const now = Math.floor(Date.now() / 1000);
+  return Math.max(0, payload.exp - now);
 }
 
 /**
- * Extract user info from token
+ * Extract normalized user data from token
  */
 export function getUserFromToken(token) {
   const payload = decodeJwt(token);
   if (!payload) return null;
 
   return {
-    id: payload.sub || payload.userId || payload.id,
-    role: payload.role,
-    email: payload.email,
+    id: payload.sub ?? payload.userId ?? payload.id ?? null,
+    role: payload.role ?? null,
+    email: payload.email ?? null,
   };
 }
 
 /**
- * Validate token structure without checking expiry
+ * Validate basic JWT format (xxx.yyy.zzz)
  */
 export function isValidTokenStructure(token) {
-  if (!token || typeof token !== "string") return false;
+  if (typeof token !== "string") return false;
+
   const parts = token.split(".");
-  return parts.length === 3 && parts.every((part) => part.length > 0);
+  return parts.length === 3 && parts.every(Boolean);
 }

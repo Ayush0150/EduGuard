@@ -1,37 +1,57 @@
 import { env } from "../../core/config/env.js";
 import { asyncHandler } from "../../core/utils/asyncHandler.js";
+
 import {
   getCurrentUser,
   loginAdmin,
   loginUser,
   requestPasswordResetOtp,
-  resetPassword,
   verifyPasswordResetOtp,
+  resetPassword,
 } from "./auth.service.js";
 
 /**
- * Normalize email to lowercase and trim whitespace
- * @param {string} email - Email address to normalize
- * @returns {string} Normalized email
+ * =====================================================
+ * Authentication Controller
+ * =====================================================
+ *
+ * Responsibilities:
+ * - HTTP request handling
+ * - Input normalization
+ * - Response formatting
+ *
+ * Business logic lives in auth.service.js
  */
+
+/* =====================================================
+   Helpers
+===================================================== */
+
 function normalizeEmail(email) {
-  return String(email ?? "")
-    .trim()
-    .toLowerCase();
+  return String(email ?? "").trim().toLowerCase();
 }
 
+function isSmtpConfigured() {
+  return Boolean(env.mail?.user) && Boolean(env.mail?.pass);
+}
+
+/* =====================================================
+   Authentication
+===================================================== */
+
 /**
- * POST /api/auth/login
+ * POST /api/v1/auth/login
  */
 export const postLogin = asyncHandler(async (req, res) => {
-  const ip = req.ip;
-
-  const result = await loginUser({ ...req.body, ip });
+  const result = await loginUser({
+    ...req.body,
+    ip: req.ip,
+  });
 
   if (!result?.ok) {
-    return res.status(result?.status || 401).json({
+    return res.status(result.status ?? 401).json({
       success: false,
-      message: result?.message || "Invalid credentials",
+      message: result.message ?? "Invalid credentials",
     });
   }
 
@@ -45,13 +65,15 @@ export const postLogin = asyncHandler(async (req, res) => {
  * POST /api/v1/auth/admin/login
  */
 export const postAdminLogin = asyncHandler(async (req, res) => {
-  const ip = req.ip;
-  const result = await loginAdmin({ ...req.body, ip });
+  const result = await loginAdmin({
+    ...req.body,
+    ip: req.ip,
+  });
 
   if (!result?.ok) {
-    return res.status(result?.status || 401).json({
+    return res.status(result.status ?? 401).json({
       success: false,
-      message: result?.message || "Invalid credentials",
+      message: result.message ?? "Invalid credentials",
     });
   }
 
@@ -63,9 +85,11 @@ export const postAdminLogin = asyncHandler(async (req, res) => {
 
 /**
  * POST /api/v1/auth/logout
+ *
+ * Stateless JWT logout.
+ * Client clears stored token.
  */
-export const postLogout = asyncHandler(async (req, res) => {
-  // Stateless JWT logout: client clears token.
+export const postLogout = asyncHandler(async (_req, res) => {
   return res.status(200).json({ success: true });
 });
 
@@ -76,9 +100,9 @@ export const getMe = asyncHandler(async (req, res) => {
   const result = await getCurrentUser({ userId: req.user.id });
 
   if (!result?.ok) {
-    return res.status(result?.status || 401).json({
+    return res.status(result.status ?? 401).json({
       success: false,
-      message: result?.message || "Unauthorized",
+      message: result.message ?? "Unauthorized",
     });
   }
 
@@ -88,26 +112,78 @@ export const getMe = asyncHandler(async (req, res) => {
   });
 });
 
+/* =====================================================
+   User Password Recovery
+===================================================== */
+
 /**
- * POST /api/auth/forgot-password/request-otp
+ * POST /api/v1/auth/forgot-password/request-otp
  */
 export const postRequestOtp = asyncHandler(async (req, res) => {
-  const result = await requestPasswordResetOtp(req.body);
-
-  if (result && result.ok === false) {
-    return res.status(result.status || 500).json({
+  if (!isSmtpConfigured()) {
+    return res.status(500).json({
       success: false,
-      message: result.message || "Failed to send OTP",
+      message:
+        "Email service is not configured. Please set SMTP_USER and SMTP_PASS.",
     });
   }
 
-  // Prevent account enumeration
+  const result = await requestPasswordResetOtp(req.body);
+
+  if (!result?.ok) {
+    return res.status(result.status ?? 500).json({
+      success: false,
+      message: result.message ?? "Failed to send OTP",
+    });
+  }
+
   return res.status(200).json({
     success: true,
-    message:
-      "If an account exists for this email, a one-time code has been sent.",
+    message: "A one-time verification code has been sent to your email.",
   });
 });
+
+/**
+ * POST /api/v1/auth/forgot-password/verify-otp
+ */
+export const postVerifyOtp = asyncHandler(async (req, res) => {
+  const result = await verifyPasswordResetOtp(req.body);
+
+  if (!result?.ok) {
+    return res.status(result.status ?? 400).json({
+      success: false,
+      message: result.message ?? "Invalid or expired OTP",
+    });
+  }
+
+  return res.status(200).json({
+    success: true,
+    data: { resetToken: result.resetToken },
+  });
+});
+
+/**
+ * POST /api/v1/auth/forgot-password/reset
+ */
+export const postResetPassword = asyncHandler(async (req, res) => {
+  const result = await resetPassword(req.body);
+
+  if (!result?.ok) {
+    return res.status(result.status ?? 400).json({
+      success: false,
+      message: result.message ?? "Password reset failed",
+    });
+  }
+
+  return res.status(200).json({
+    success: true,
+    message: "Password updated successfully.",
+  });
+});
+
+/* =====================================================
+   Admin Password Recovery (Restricted)
+===================================================== */
 
 /**
  * POST /api/v1/auth/admin/forgot-password/request-otp
@@ -116,11 +192,19 @@ export const postAdminRequestOtp = asyncHandler(async (req, res) => {
   if (!env.superAdminEmail) {
     return res.status(500).json({
       success: false,
-      message: "Admin email is not configured (SUPER_ADMIN_EMAIL).",
+      message: "SUPER_ADMIN_EMAIL is not configured.",
+    });
+  }
+
+  if (!isSmtpConfigured()) {
+    return res.status(500).json({
+      success: false,
+      message: "Email service is not configured.",
     });
   }
 
   const email = normalizeEmail(req.body?.email);
+
   if (email !== env.superAdminEmail) {
     return res.status(403).json({
       success: false,
@@ -130,16 +214,16 @@ export const postAdminRequestOtp = asyncHandler(async (req, res) => {
 
   const result = await requestPasswordResetOtp({ email });
 
-  if (result && result.ok === false) {
-    return res.status(result.status || 500).json({
+  if (!result?.ok) {
+    return res.status(result.status ?? 500).json({
       success: false,
-      message: result.message || "Failed to send OTP",
+      message: result.message ?? "Failed to send OTP",
     });
   }
 
   return res.status(200).json({
     success: true,
-    message: "A one-time code has been sent.",
+    message: "One-time verification code sent.",
   });
 });
 
@@ -147,14 +231,8 @@ export const postAdminRequestOtp = asyncHandler(async (req, res) => {
  * POST /api/v1/auth/admin/forgot-password/verify-otp
  */
 export const postAdminVerifyOtp = asyncHandler(async (req, res) => {
-  if (!env.superAdminEmail) {
-    return res.status(500).json({
-      success: false,
-      message: "Admin email is not configured (SUPER_ADMIN_EMAIL).",
-    });
-  }
-
   const email = normalizeEmail(req.body?.email);
+
   if (email !== env.superAdminEmail) {
     return res.status(403).json({
       success: false,
@@ -168,9 +246,9 @@ export const postAdminVerifyOtp = asyncHandler(async (req, res) => {
   });
 
   if (!result?.ok) {
-    return res.status(result?.status || 400).json({
+    return res.status(result.status ?? 400).json({
       success: false,
-      message: result?.message || "Invalid or expired OTP",
+      message: result.message ?? "Invalid or expired OTP",
     });
   }
 
@@ -184,14 +262,8 @@ export const postAdminVerifyOtp = asyncHandler(async (req, res) => {
  * POST /api/v1/auth/admin/forgot-password/reset
  */
 export const postAdminResetPassword = asyncHandler(async (req, res) => {
-  if (!env.superAdminEmail) {
-    return res.status(500).json({
-      success: false,
-      message: "Admin email is not configured (SUPER_ADMIN_EMAIL).",
-    });
-  }
-
   const email = normalizeEmail(req.body?.email);
+
   if (email !== env.superAdminEmail) {
     return res.status(403).json({
       success: false,
@@ -206,52 +278,14 @@ export const postAdminResetPassword = asyncHandler(async (req, res) => {
   });
 
   if (!result?.ok) {
-    return res.status(result?.status || 400).json({
+    return res.status(result.status ?? 400).json({
       success: false,
-      message: result?.message || "Password reset failed",
+      message: result.message ?? "Password reset failed",
     });
   }
 
   return res.status(200).json({
     success: true,
-    message: "Password updated successfully",
-  });
-});
-
-/**
- * POST /api/auth/forgot-password/verify-otp
- */
-export const postVerifyOtp = asyncHandler(async (req, res) => {
-  const result = await verifyPasswordResetOtp(req.body);
-
-  if (!result?.ok) {
-    return res.status(result?.status || 400).json({
-      success: false,
-      message: result?.message || "Invalid or expired OTP",
-    });
-  }
-
-  return res.status(200).json({
-    success: true,
-    data: { resetToken: result.resetToken },
-  });
-});
-
-/**
- * POST /api/auth/forgot-password/reset
- */
-export const postResetPassword = asyncHandler(async (req, res) => {
-  const result = await resetPassword(req.body);
-
-  if (!result?.ok) {
-    return res.status(result?.status || 400).json({
-      success: false,
-      message: result?.message || "Password reset failed",
-    });
-  }
-
-  return res.status(200).json({
-    success: true,
-    message: "Password updated successfully",
+    message: "Password updated successfully.",
   });
 });

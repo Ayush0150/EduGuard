@@ -1,214 +1,155 @@
 import crypto from "crypto";
-import nodemailer from "nodemailer";
+
 import { env } from "../../core/config/env.js";
+import { sendMail } from "../../core/mail/mailer.js";
 import { signAccessToken } from "../../core/security/jwt.js";
 import { hashPassword, verifyPassword } from "../../core/security/password.js";
 import { loginAttemptStore } from "../../core/store/loginAttemptStore.js";
 import { logger } from "../../core/utils/logger.js";
 import { User } from "../users/user.model.js";
 
-/* -------------------------------------------------------------------------- */
-/*                                Utilities                                   */
-/* -------------------------------------------------------------------------- */
+/**
+ * =====================================================
+ * Authentication Service
+ * =====================================================
+ *
+ * Responsibilities:
+ * - User & Admin authentication
+ * - Login throttling & brute-force protection
+ * - OTP-based password recovery
+ * - Secure reset-token workflow
+ *
+ * ⚠️ No HTTP logic here.
+ * Controllers handle request/response.
+ */
 
-function normalizeIdentifier(identifier) {
-  return String(identifier ?? "").trim();
+/* =====================================================
+   Constants
+===================================================== */
+
+const MAX_LOGIN_ATTEMPTS = 10;
+const OTP_EXPIRY_MINUTES = 10;
+const RESET_TOKEN_EXPIRY_MINUTES = 15;
+
+const LOGIN_LOCK_MESSAGE =
+  "Too many failed sign-in attempts. Please try again after 15 minutes.";
+
+const ADMIN_ROLES = new Set(["ADMIN", "SUPER_ADMIN"]);
+
+/* =====================================================
+   Helpers
+===================================================== */
+
+function normalize(value) {
+  return String(value ?? "").trim();
 }
 
 function isEmail(value) {
-  return String(value).includes("@");
+  return value.includes("@");
 }
 
 function sha256(value) {
   return crypto.createHash("sha256").update(String(value)).digest("hex");
 }
 
-const MAX_LOGIN_ATTEMPTS = 10;
-const LOGIN_LOCK_MESSAGE =
-  "Too many failed sign-in attempts. Please try again in 15 minutes.";
-
-const ADMIN_ROLES = new Set(["ADMIN", "SUPER_ADMIN"]);
-
 function isAdminRole(role) {
   return ADMIN_ROLES.has(role);
 }
 
-/* -------------------------------------------------------------------------- */
-/*                              Email Helpers                                  */
-/* -------------------------------------------------------------------------- */
-
-function createTransporter() {
-  const { host, port, secure, user, pass } = env.mail;
-  if (!user || !pass) return null;
-
-  const normalizedUser = String(user).trim().toLowerCase();
-  const normalizedHost = String(host ?? "")
-    .trim()
-    .toLowerCase();
-  const isGmailUser =
-    normalizedUser.endsWith("@gmail.com") ||
-    normalizedUser.endsWith("@googlemail.com");
-
-  // If host is explicitly configured, honor host/port/secure.
-  if (normalizedHost) {
-    return nodemailer.createTransport({
-      host: normalizedHost,
-      port,
-      secure,
-      auth: { user, pass },
-    });
-  }
-
-  // Otherwise, fall back to Nodemailer's well-known Gmail config for Gmail accounts.
-  if (isGmailUser) {
-    return nodemailer.createTransport({
-      service: "gmail",
-      auth: { user, pass },
-    });
-  }
-
-  return null;
+function maskEmail(email) {
+  const val = normalize(email);
+  const at = val.indexOf("@");
+  if (at <= 2) return "***";
+  return `${val.slice(0, 2)}***${val.slice(at)}`;
 }
 
-function createSmtpTransporter({ host, port, secure, user, pass }) {
-  const normalizedHost = String(host ?? "")
-    .trim()
-    .toLowerCase();
-  if (!normalizedHost || !user || !pass) return null;
-
-  return nodemailer.createTransport({
-    host: normalizedHost,
-    port,
-    secure,
-    auth: { user, pass },
-  });
-}
-
-function getOfficialFrom() {
-  // Always use authenticated mailbox to avoid spam / spoofing issues
-  return env.mail.user ? `EduGuard Security <${env.mail.user}>` : env.mail.from;
-}
-
-/* -------------------------------------------------------------------------- */
-/*                      Professional Password Reset Email                      */
-/* -------------------------------------------------------------------------- */
+/* =====================================================
+   Email Template
+===================================================== */
 
 function buildResetOtpEmail({ otp }) {
-  const safeOtp = String(otp ?? "").replace(/[^0-9]/g, "");
-  const subject = "EduGuard | Password Reset Verification Code";
+  const safeOtp = String(otp).replace(/[^0-9]/g, "");
 
-  const text = `EduGuard Password Reset
+  return {
+    subject: "EduGuard | Password Reset Verification Code",
+
+    text: `EduGuard Password Reset
 
 Your verification code is: ${safeOtp}
 
-This code expires in 10 minutes.
+This code expires in ${OTP_EXPIRY_MINUTES} minutes.
 If you did not request a password reset, please ignore this email.
 
-— EduGuard Security Team`;
+— EduGuard Security Team`,
 
-  const html = `
+    html: `
 <!DOCTYPE html>
 <html>
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Password Reset</title>
-</head>
-
-<body style="margin:0;padding:0;background:#f8fafc;font-family:Arial,Helvetica,sans-serif;color:#0f172a">
-  <table width="100%" cellpadding="0" cellspacing="0" style="padding:24px 0;">
+<body style="margin:0;padding:0;background:#f8fafc;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="padding:24px">
     <tr>
       <td align="center">
-
-        <table width="100%" cellpadding="0" cellspacing="0"
-          style="max-width:520px;background:#ffffff;border:1px solid #e2e8f0">
-
-          <!-- Header -->
+        <table style="max-width:520px;background:#fff;border:1px solid #e2e8f0">
           <tr>
-            <td style="padding:18px 20px;border-bottom:1px solid #e2e8f0">
-              <div style="font-size:14px;font-weight:700;letter-spacing:.4px">
-                EduGuard Security
-              </div>
+            <td style="padding:16px;font-weight:700;border-bottom:1px solid #e2e8f0">
+              EduGuard Security
             </td>
           </tr>
 
-          <!-- Body -->
           <tr>
             <td style="padding:20px">
-              <h2 style="margin:0 0 10px;font-size:18px;font-weight:600">
-                Password reset request
-              </h2>
+              <p>Use the verification code below to reset your password:</p>
 
-              <p style="margin:0 0 16px;font-size:14px;line-height:1.6;color:#334155">
-                We received a request to reset your EduGuard account password.
-                Please use the verification code below to continue.
-              </p>
-
-              <!-- OTP -->
               <div style="margin:20px 0;padding:14px;text-align:center;
-                border:1px dashed #cbd5e1;background:#f1f5f9;">
-                <div style="font-size:22px;font-weight:700;letter-spacing:6px;">
-                  ${safeOtp}
-                </div>
+                border:1px dashed #cbd5e1;background:#f1f5f9;
+                font-size:22px;font-weight:700;letter-spacing:6px;">
+                ${safeOtp}
               </div>
 
-              <p style="margin:0 0 12px;font-size:13px;color:#475569">
-                This code will expire in <b>10 minutes</b>.
+              <p style="font-size:13px;color:#475569">
+                This code expires in ${OTP_EXPIRY_MINUTES} minutes.
               </p>
 
-              <p style="margin:0;font-size:12px;line-height:1.6;color:#64748b">
-                If you did not request this reset, you can safely ignore this
-                email. Your account will remain secure.
+              <p style="font-size:12px;color:#64748b">
+                If you did not request this reset, you can safely ignore this email.
               </p>
             </td>
           </tr>
 
-          <!-- Footer -->
           <tr>
-            <td style="padding:14px;border-top:1px solid #e2e8f0;
+            <td style="padding:12px;border-top:1px solid #e2e8f0;
               font-size:11px;color:#94a3b8;text-align:center">
-              © ${new Date().getFullYear()} EduGuard • Secure College Monitoring
+              © ${new Date().getFullYear()} EduGuard
             </td>
           </tr>
-
         </table>
-
       </td>
     </tr>
   </table>
 </body>
 </html>
-`;
-
-  return { subject, text, html };
+`,
+  };
 }
 
-/* -------------------------------------------------------------------------- */
-/*                                   Login                                    */
-/* -------------------------------------------------------------------------- */
+/* =====================================================
+   Core Login Engine
+===================================================== */
 
-export async function login({
+async function executeLogin({
   identifier,
   password,
   ip,
-  roleCheck,
-  roleCheckMessage,
+  roleGuard,
+  roleErrorMessage,
 }) {
-  const normalized = normalizeIdentifier(identifier);
+  const normalized = normalize(identifier);
   const attemptKey = loginAttemptStore.key({ identifier: normalized, ip });
 
   const attempts = loginAttemptStore.getAttempts(attemptKey);
   if (attempts >= MAX_LOGIN_ATTEMPTS) {
-    logger.security.loginLocked({
-      email: normalized,
-      ip,
-      attempts,
-    });
-    return {
-      ok: false,
-      status: 429,
-      message: LOGIN_LOCK_MESSAGE,
-    };
+    logger.security.loginLocked({ identifier: normalized, ip, attempts });
+    return { ok: false, status: 429, message: LOGIN_LOCK_MESSAGE };
   }
 
   const query = isEmail(normalized)
@@ -216,49 +157,39 @@ export async function login({
     : { username: normalized };
 
   const user = await User.findOne(query).select("+passwordHash");
-  const passwordOk = user
-    ? await verifyPassword(password, user.passwordHash)
-    : false;
 
-  if (!user || !user.isActive || !passwordOk) {
+  const passwordValid =
+    user && (await verifyPassword(password, user.passwordHash));
+
+  if (!user || !user.isActive || !passwordValid) {
     loginAttemptStore.increment(attemptKey);
+
     logger.security.loginAttempt(false, {
-      email: normalized,
+      identifier: normalized,
       ip,
       reason: !user
-        ? "User not found"
+        ? "USER_NOT_FOUND"
         : !user.isActive
-        ? "Account inactive"
-        : "Invalid password",
+        ? "ACCOUNT_DISABLED"
+        : "INVALID_PASSWORD",
     });
+
     return {
       ok: false,
       status: 401,
-      message:
-        "Unable to sign in. Please check your credentials and try again.",
+      message: "Invalid credentials.",
     };
   }
 
-  if (typeof roleCheck === "function" && !roleCheck(user.role)) {
-    logger.security.loginAttempt(false, {
-      email: user.email,
-      ip,
-      reason: roleCheckMessage || "Insufficient role",
-    });
+  if (roleGuard && !roleGuard(user.role)) {
     return {
       ok: false,
       status: 403,
-      message: roleCheckMessage || "Forbidden",
+      message: roleErrorMessage || "Access denied.",
     };
   }
 
   loginAttemptStore.reset(attemptKey);
-
-  logger.security.loginAttempt(true, {
-    email: user.email,
-    ip,
-    reason: "Success",
-  });
 
   const token = signAccessToken(
     { userId: user._id.toString(), role: user.role },
@@ -280,37 +211,31 @@ export async function login({
   };
 }
 
-export async function loginUser({ identifier, password, ip }) {
-  return login({
-    identifier,
-    password,
-    ip,
-    roleCheck: (role) => !isAdminRole(role),
-    roleCheckMessage: "Please sign in via the Admin Login page.",
+/* =====================================================
+   Public APIs
+===================================================== */
+
+export function loginUser(payload) {
+  return executeLogin({
+    ...payload,
+    roleGuard: (role) => !isAdminRole(role),
+    roleErrorMessage: "Please use the Admin Login page.",
   });
 }
 
-export async function loginAdmin({ identifier, password, ip }) {
-  const result = await login({
-    identifier,
-    password,
-    ip,
-    roleCheck: (role) => isAdminRole(role),
-    roleCheckMessage: "Admin access required.",
+export async function loginAdmin(payload) {
+  const result = await executeLogin({
+    ...payload,
+    roleGuard: isAdminRole,
+    roleErrorMessage: "Admin access required.",
   });
 
-  if (!result?.ok) return result;
+  if (!result.ok) return result;
 
   if (env.superAdminEmail) {
-    const email = String(result?.data?.user?.email ?? "")
-      .trim()
-      .toLowerCase();
+    const email = result.data.user.email.toLowerCase();
     if (email !== env.superAdminEmail) {
-      return {
-        ok: false,
-        status: 403,
-        message: "Admin access restricted.",
-      };
+      return { ok: false, status: 403, message: "Admin access restricted." };
     }
   }
 
@@ -337,304 +262,109 @@ export async function getCurrentUser({ userId }) {
   };
 }
 
-/* -------------------------------------------------------------------------- */
-/*                         Request Password Reset OTP                          */
-/* -------------------------------------------------------------------------- */
+/* =====================================================
+   Password Reset Flow
+===================================================== */
 
 export async function requestPasswordResetOtp({ email }) {
-  const normalizedEmail = String(email).trim().toLowerCase();
-
-  // Find user - must be registered in database
+  const normalizedEmail = normalize(email).toLowerCase();
   const user = await User.findOne({ email: normalizedEmail });
 
-  // Security: Prevent user enumeration attack
-  // Always return success but only send OTP to REGISTERED and ACTIVE users
-  if (!user) {
-    logger.security.passwordReset({
-      email: normalizedEmail,
-      success: false,
-      step: "OTP_requested",
-      reason: "Email not registered",
-    });
-    // Return success to prevent email enumeration
-    return { ok: true };
+  if (!user || !user.isActive) {
+    return {
+      ok: false,
+      status: 404,
+      message: "No active account found for this email.",
+    };
   }
 
-  // Security: Only ACTIVE users can reset password
-  if (!user.isActive) {
-    logger.security.passwordReset({
-      email: normalizedEmail,
-      success: false,
-      step: "OTP_requested",
-      reason: "Account inactive",
-    });
-    // Return success to prevent account status enumeration
-    return { ok: true };
-  }
+  const otp = String(crypto.randomInt(100000, 1000000));
 
-  // Generate 6-digit OTP
-  const otp = String(Math.floor(100000 + Math.random() * 900000));
   user.resetOtpHash = sha256(otp);
-  user.resetOtpExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+  user.resetOtpExpiresAt = new Date(
+    Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000
+  );
+
   user.resetTokenHash = null;
   user.resetTokenExpiresAt = null;
+
   await user.save();
-
-  logger.security.passwordReset({
-    email: normalizedEmail,
-    success: true,
-    step: "OTP_requested",
-    role: user.role,
-    userId: user._id.toString(),
-  });
-
-  // Determine if this is admin reset (send to recovery email if configured)
-  const isAdminTarget =
-    env.superAdminEmail && normalizedEmail === env.superAdminEmail;
-  const otpRecipient =
-    isAdminTarget && env.adminRecoveryEmail
-      ? env.adminRecoveryEmail
-      : normalizedEmail;
-
-  const transporter = createTransporter();
-  if (!transporter) {
-    if (env.nodeEnv === "production") {
-      return {
-        ok: false,
-        status: 500,
-        message:
-          "Email service is not configured. Set SMTP_* variables in server/.env",
-      };
-    }
-
-    return { ok: true };
-  }
 
   const mail = buildResetOtpEmail({ otp });
 
-  try {
-    const send = async (tx) => {
-      await tx.verify();
-      await tx.sendMail({
-        from: getOfficialFrom(),
-        to: otpRecipient,
-        subject: mail.subject,
-        text: mail.text,
-        html: mail.html,
-      });
-    };
+  await sendMail({
+    to: normalizedEmail,
+    subject: mail.subject,
+    text: mail.text,
+    html: mail.html,
+  });
 
-    try {
-      // Primary attempt
-      await send(transporter);
-    } catch (primaryErr) {
-      // Gmail fallback between 587 (STARTTLS) and 465 (SSL)
-      const host = String(env.mail.host ?? "")
-        .trim()
-        .toLowerCase();
-      const isGmail = host === "smtp.gmail.com";
-
-      if (!isGmail) throw primaryErr;
-
-      const fallbackCandidates = [
-        { port: 587, secure: false },
-        { port: 465, secure: true },
-      ].filter(
-        (c) => !(c.port === env.mail.port && c.secure === env.mail.secure)
-      );
-
-      let lastErr = primaryErr;
-      let sent = false;
-
-      for (const candidate of fallbackCandidates) {
-        const tx = createSmtpTransporter({
-          host,
-          port: candidate.port,
-          secure: candidate.secure,
-          user: env.mail.user,
-          pass: env.mail.pass,
-        });
-
-        if (!tx) continue;
-
-        try {
-          await send(tx);
-          sent = true;
-          break;
-        } catch (err) {
-          lastErr = err;
-        }
-      }
-
-      if (!sent) throw lastErr;
-    }
-  } catch (err) {
-    // In development, log the OTP to console as fallback
-    if (env.nodeEnv !== "production") {
-      // Return success in development so password reset can continue
-      return { ok: true };
-    }
-
-    // In production, return error
-    return {
-      ok: false,
-      status: 500,
-      message: "Failed to send OTP. Please contact support or try again later.",
-    };
-  }
+  logger.security.passwordReset({
+    email: maskEmail(normalizedEmail),
+    step: "OTP_SENT",
+  });
 
   return { ok: true };
 }
 
-/* -------------------------------------------------------------------------- */
-/*                        Verify Password Reset OTP                            */
-/* -------------------------------------------------------------------------- */
-
 export async function verifyPasswordResetOtp({ email, otp }) {
-  const normalizedEmail = String(email).trim().toLowerCase();
+  const normalizedEmail = normalize(email).toLowerCase();
   const user = await User.findOne({ email: normalizedEmail });
 
-  // Validate user exists, is active, and has pending OTP
   if (
     !user ||
-    !user.isActive ||
     !user.resetOtpHash ||
-    !user.resetOtpExpiresAt
+    !user.resetOtpExpiresAt ||
+    user.resetOtpExpiresAt < new Date()
   ) {
-    logger.security.passwordReset({
-      email: normalizedEmail,
-      success: false,
-      step: "OTP_verification_failed",
-      reason: !user
-        ? "User not found"
-        : !user.isActive
-        ? "Account inactive"
-        : "No pending OTP",
-    });
-    return {
-      ok: false,
-      status: 400,
-      message: "The code you entered is invalid.",
-    };
+    return { ok: false, status: 400, message: "Invalid or expired OTP." };
   }
 
-  // Check if OTP has expired
-  if (user.resetOtpExpiresAt.getTime() < Date.now()) {
-    logger.security.passwordReset({
-      email: normalizedEmail,
-      success: false,
-      step: "OTP_verification_failed",
-      reason: "OTP expired",
-    });
-    return {
-      ok: false,
-      status: 400,
-      message: "That one-time code has expired. Please request a new code.",
-    };
-  }
-
-  // Verify OTP matches
   if (sha256(otp) !== user.resetOtpHash) {
-    logger.security.passwordReset({
-      email: normalizedEmail,
-      success: false,
-      step: "OTP_verification_failed",
-      reason: "Incorrect OTP",
-    });
-    return {
-      ok: false,
-      status: 400,
-      message: "The code you entered is invalid.",
-    };
+    return { ok: false, status: 400, message: "Invalid OTP." };
   }
 
   const resetToken = crypto.randomBytes(32).toString("hex");
+
   user.resetTokenHash = sha256(resetToken);
-  user.resetTokenExpiresAt = new Date(Date.now() + 15 * 60 * 1000);
+  user.resetTokenExpiresAt = new Date(
+    Date.now() + RESET_TOKEN_EXPIRY_MINUTES * 60 * 1000
+  );
+
   user.resetOtpHash = null;
   user.resetOtpExpiresAt = null;
-  await user.save();
 
-  logger.security.passwordReset({
-    email: normalizedEmail,
-    success: true,
-    step: "OTP_verified",
-  });
+  await user.save();
 
   return { ok: true, resetToken };
 }
 
-/* -------------------------------------------------------------------------- */
-/*                             Reset Password                                  */
-/* -------------------------------------------------------------------------- */
-
 export async function resetPassword({ email, resetToken, newPassword }) {
-  const normalizedEmail = String(email).trim().toLowerCase();
+  const normalizedEmail = normalize(email).toLowerCase();
   const user = await User.findOne({ email: normalizedEmail });
 
-  // Validate user exists, is active, and has valid reset token
   if (
     !user ||
-    !user.isActive ||
     !user.resetTokenHash ||
-    !user.resetTokenExpiresAt
+    !user.resetTokenExpiresAt ||
+    user.resetTokenExpiresAt < new Date()
   ) {
-    logger.security.passwordReset({
-      email: normalizedEmail,
-      success: false,
-      step: "Password_reset_failed",
-      reason: !user
-        ? "User not found"
-        : !user.isActive
-        ? "Account inactive"
-        : "No valid reset token",
-    });
-    return {
-      ok: false,
-      status: 400,
-      message: "Invalid password reset request.",
-    };
+    return { ok: false, status: 400, message: "Invalid reset session." };
   }
 
-  // Check if reset token has expired
-  if (user.resetTokenExpiresAt.getTime() < Date.now()) {
-    logger.security.passwordReset({
-      email: normalizedEmail,
-      success: false,
-      step: "Password_reset_failed",
-      reason: "Reset token expired",
-    });
-    return {
-      ok: false,
-      status: 400,
-      message: "Reset session expired. Please request a new one-time code.",
-    };
-  }
-
-  // Verify reset token matches
   if (sha256(resetToken) !== user.resetTokenHash) {
-    logger.security.passwordReset({
-      email: normalizedEmail,
-      success: false,
-      step: "Password_reset_failed",
-      reason: "Invalid reset token",
-    });
-    return {
-      ok: false,
-      status: 400,
-      message: "Invalid reset session. Please request a new one-time code.",
-    };
+    return { ok: false, status: 400, message: "Invalid reset token." };
   }
 
   user.passwordHash = await hashPassword(newPassword);
   user.resetTokenHash = null;
   user.resetTokenExpiresAt = null;
+
   await user.save();
 
   logger.security.passwordReset({
-    email: normalizedEmail,
-    success: true,
-    step: "Password_reset_completed",
+    email: maskEmail(normalizedEmail),
+    step: "PASSWORD_CHANGED",
   });
 
   return { ok: true };

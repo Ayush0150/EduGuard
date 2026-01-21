@@ -1,125 +1,147 @@
-import { useState } from "react";
+/**
+ * PasswordInput
+ * -------------
+ * Enterprise-grade secure password input
+ * used across EduGuard authentication flows.
+ *
+ * Design goals:
+ * - Clean SaaS experience
+ * - Zero layout shift
+ * - Accessible visibility toggle
+ * - Consistent with FormInput
+ */
+
+import { forwardRef, useState } from "react";
 
 function EyeIcon({ open }) {
   return (
     <svg
-      width="18"
-      height="18"
       viewBox="0 0 24 24"
+      className="h-5 w-5"
       fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      className="h-[18px] w-[18px] text-slate-400 transition-colors group-hover:text-slate-600 dark:text-slate-400 dark:group-hover:text-slate-200"
-      aria-hidden="true"
+      stroke="currentColor"
+      strokeWidth="2"
+      aria-hidden
     >
       {open ? (
-        <>
-          <path
-            d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          <path
-            d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </>
+        <path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
       ) : (
-        <>
-          <path
-            d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          <path
-            d="M4 4l16 16"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-          />
-        </>
+        <path d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
       )}
     </svg>
   );
 }
 
-export function PasswordInput({
-  id,
-  label,
-  value,
-  onChange,
-  placeholder,
-  error,
-  required = false,
-  autoComplete = "current-password",
-  helpText,
-  className = "",
-}) {
-  const [showPassword, setShowPassword] = useState(false);
+const BASE_INPUT =
+  "mt-2 w-full rounded-none border bg-surface-50 px-5 py-4 pr-12 text-base leading-relaxed text-surface-900 transition-all duration-200 placeholder:text-surface-400 focus:outline-none focus:ring-4 focus:ring-brand-500/10 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-surface-950/50 dark:text-white dark:placeholder:text-surface-600";
 
-  const inputBaseClass =
-    "w-full rounded-none border bg-white px-4 py-3 pr-12 text-sm text-slate-900 shadow-sm outline-none transition-colors placeholder:text-slate-400 focus:ring-2 focus:ring-offset-0 focus-visible:outline-none dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500";
+const NORMAL_INPUT =
+  "border-surface-200 hover:border-surface-300 focus:border-brand-500 dark:border-surface-800 dark:hover:border-surface-700 dark:focus:border-brand-500";
 
-  const inputClass = error
-    ? `${inputBaseClass} border-red-300 focus:border-red-500 focus:ring-red-500 dark:border-red-900/60`
-    : `${inputBaseClass} border-slate-200 focus:border-indigo-600 focus:ring-indigo-600 dark:border-slate-700`;
+const ERROR_INPUT =
+  "border-red-400 focus:border-red-500 focus:ring-red-500/15 dark:border-red-900/60";
+
+export const PasswordInput = forwardRef(function PasswordInput(
+  {
+    id,
+    label,
+    value,
+    onChange,
+    placeholder = "••••••••",
+    error,
+    required = false,
+    autoComplete = "current-password",
+    helpText,
+    className = "",
+    disabled = false,
+    ...props
+  },
+  ref
+) {
+  const [visible, setVisible] = useState(false);
 
   const errorId = error ? `${id}-error` : undefined;
   const helpId = helpText && !error ? `${id}-help` : undefined;
-  const describedBy = errorId || helpId;
+  const describedBy = [errorId, helpId].filter(Boolean).join(" ") || undefined;
 
   return (
-    <div className={className}>
+    <div className={`space-y-2 ${className}`}>
+      {/* Label */}
       {label && (
         <label
           htmlFor={id}
-          className="text-xs font-semibold text-slate-700 dark:text-slate-200"
+          className="block text-base font-semibold text-surface-800 dark:text-surface-200 mb-1"
         >
           {label}
-          {required && <span className="text-red-500"> *</span>}
+          {required && (
+            <span className="ml-0.5 text-red-500" aria-hidden>
+              *
+            </span>
+          )}
         </label>
       )}
-      <div className="relative mt-2">
+
+      {/* Input */}
+      <div className="relative">
         <input
+          ref={ref}
           id={id}
           name={id}
-          type={showPassword ? "text" : "password"}
+          type={visible ? "text" : "password"}
           value={value}
           onChange={onChange}
           placeholder={placeholder}
-          className={inputClass}
           autoComplete={autoComplete}
-          aria-invalid={Boolean(error)}
+          disabled={disabled}
+          aria-invalid={Boolean(error) || undefined}
           aria-describedby={describedBy}
+          className={`${BASE_INPUT} ${error ? ERROR_INPUT : NORMAL_INPUT}`}
+          {...props}
         />
+
+        {/* Visibility toggle */}
         <button
           type="button"
-          onClick={() => setShowPassword((v) => !v)}
-          className="group absolute inset-y-0 right-0 flex items-center px-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:ring-offset-0"
-          aria-label={showPassword ? "Hide password" : "Show password"}
+          tabIndex={-1}
+          onClick={() => setVisible((v) => !v)}
+          className="absolute inset-y-0 right-0 flex items-center px-4 text-surface-400 transition-colors hover:text-brand-600 dark:hover:text-brand-400"
+          aria-label={visible ? "Hide password" : "Show password"}
         >
-          <EyeIcon open={showPassword} />
+          <EyeIcon open={visible} />
         </button>
       </div>
+
+      {/* Error */}
       {error && (
-        <p id={errorId} className="mt-2 text-xs text-red-600 dark:text-red-300">
+        <p
+          id={errorId}
+          className="flex items-center gap-1.5 text-xs font-medium text-red-600 dark:text-red-400"
+        >
+          <svg
+            className="h-3.5 w-3.5 shrink-0"
+            fill="currentColor"
+            viewBox="0 0 20 20"
+            aria-hidden
+          >
+            <path
+              fillRule="evenodd"
+              d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+              clipRule="evenodd"
+            />
+          </svg>
           {error}
         </p>
       )}
+
+      {/* Help text */}
       {!error && helpText && (
         <p
           id={helpId}
-          className="mt-2 text-xs text-slate-500 dark:text-slate-400"
+          className="text-xs text-surface-500 dark:text-surface-400"
         >
           {helpText}
         </p>
       )}
     </div>
   );
-}
+});

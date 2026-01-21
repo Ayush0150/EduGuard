@@ -2,26 +2,39 @@ import mongoose from "mongoose";
 import { env } from "../src/core/config/env.js";
 import { User } from "../src/modules/users/user.model.js";
 
-await mongoose.connect(env.mongoUri);
+async function resetUsers() {
+  try {
+    await mongoose.connect(env.mongoUri, {
+      serverSelectionTimeoutMS: 5000,
+    });
 
-try {
-  // Delete all users except SUPER_ADMIN
-  const result = await User.deleteMany({
-    role: { $ne: "SUPER_ADMIN" },
-  });
+    process.stdout.write("✅ MongoDB connected\n");
 
-  console.log("✅ Deleted", result.deletedCount, "regular users");
-  console.log("✅ Admin account preserved");
+    // Delete all users except SUPER_ADMIN
+    const { deletedCount } = await User.deleteMany({
+      role: { $ne: "SUPER_ADMIN" },
+    });
 
-  // Show remaining users
-  const remaining = await User.find({}).select("username email role");
-  console.log("\n📋 Remaining users:");
-  remaining.forEach((u) => {
-    console.log(`   - ${u.username} (${u.email}) - ${u.role}`);
-  });
+    process.stdout.write(`🗑️  Deleted ${deletedCount} regular users\n`);
+    process.stdout.write("🔐 SUPER_ADMIN account preserved\n");
 
-  process.exit(0);
-} catch (error) {
-  console.error("❌ Error:", error.message);
-  process.exit(1);
+    // Show remaining users
+    const remainingUsers = await User.find()
+      .select("username email role")
+      .lean();
+
+    process.stdout.write("\n📋 Remaining users:\n");
+    remainingUsers.forEach((u) => {
+      process.stdout.write(`   • ${u.username} (${u.email}) — ${u.role}\n`);
+    });
+
+    await mongoose.disconnect();
+    process.exit(0);
+  } catch (err) {
+    process.stderr.write(`\n❌ Reset failed: ${err.message}\n`);
+    await mongoose.disconnect();
+    process.exit(1);
+  }
 }
+
+resetUsers();

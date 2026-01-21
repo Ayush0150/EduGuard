@@ -1,105 +1,118 @@
 import { z } from "zod";
 
-/**
- * Strong password schema with comprehensive validation
- */
-const strongPasswordSchema = z
+/* =====================================================
+   Shared Constants
+===================================================== */
+
+const MAX_PASSWORD_LENGTH = 128;
+const MAX_EMAIL_LENGTH = 255;
+const MAX_USERNAME_LENGTH = 50;
+
+/* =====================================================
+   Strong Password Schema
+===================================================== */
+
+export const strongPasswordSchema = z
   .string({ required_error: "Password is required" })
   .trim()
-  .min(8, "Password must be at least 8 characters")
-  .max(128, "Password must not exceed 128 characters")
-  .superRefine((val, ctx) => {
-    const password = String(val ?? "");
+  .min(8, "Password must be at least 8 characters long")
+  .max(
+    MAX_PASSWORD_LENGTH,
+    `Password must not exceed ${MAX_PASSWORD_LENGTH} characters`
+  )
+  .superRefine((password, ctx) => {
+    const value = String(password ?? "");
 
-    if (!/[a-z]/.test(password)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["password"],
+    const rules = [
+      {
+        test: /[a-z]/,
         message: "Password must include at least one lowercase letter",
-      });
-    }
-
-    if (!/[A-Z]/.test(password)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["password"],
+      },
+      {
+        test: /[A-Z]/,
         message: "Password must include at least one uppercase letter",
-      });
-    }
-
-    if (!/\d/.test(password)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["password"],
+      },
+      {
+        test: /\d/,
         message: "Password must include at least one number",
-      });
-    }
-
-    if (!/[^A-Za-z0-9]/.test(password)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["password"],
+      },
+      {
+        test: /[^A-Za-z0-9]/,
         message: "Password must include at least one special character",
-      });
-    }
-
-    // Check for common patterns
-    const commonPatterns = [
-      /^(.)\1+$/, // All same character
-      /^12345678/, // Sequential numbers
-      /^password/i, // Contains "password"
-      /^qwerty/i, // Contains "qwerty"
+      },
     ];
 
-    if (commonPatterns.some((pattern) => pattern.test(password))) {
+    rules.forEach(({ test, message }) => {
+      if (!test.test(value)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message,
+        });
+      }
+    });
+
+    const weakPatterns = [
+      /^(.)\1+$/, // same character repeated
+      /^12345678/,
+      /^password/i,
+      /^qwerty/i,
+    ];
+
+    if (weakPatterns.some((pattern) => pattern.test(value))) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ["password"],
-        message: "Password is too common. Please choose a stronger password",
+        message:
+          "Password is too weak or commonly used. Please choose a stronger password.",
       });
     }
   });
 
-/**
- * Username validation schema
- */
-const usernameSchema = z
+/* =====================================================
+   Username Schema
+===================================================== */
+
+export const usernameSchema = z
   .string({ required_error: "Username is required" })
   .trim()
-  .min(3, "Username must be at least 3 characters")
-  .max(50, "Username must not exceed 50 characters")
+  .min(3, "Username must be at least 3 characters long")
+  .max(
+    MAX_USERNAME_LENGTH,
+    `Username must not exceed ${MAX_USERNAME_LENGTH} characters`
+  )
   .regex(
     /^[a-zA-Z0-9_-]+$/,
-    "Username can only contain letters, numbers, underscores, and hyphens"
+    "Username may contain only letters, numbers, underscores (_) and hyphens (-)"
   );
 
-/**
- * Email validation schema
- */
-const emailSchema = z
+/* =====================================================
+   Email Schema
+===================================================== */
+
+export const emailSchema = z
   .string({ required_error: "Email is required" })
   .trim()
   .email("Please enter a valid email address")
-  .max(255, "Email is too long")
-  .transform((val) => val.toLowerCase());
+  .max(MAX_EMAIL_LENGTH, "Email address is too long")
+  .transform((email) => email.toLowerCase());
 
-/**
- * Create user schema with strict validation
- */
+/* =====================================================
+   Create User Schema
+===================================================== */
+
 export const createUserSchema = z.object({
   username: usernameSchema,
   email: emailSchema,
   password: strongPasswordSchema,
   role: z
     .enum(["USER", "SECURITY", "MAINTENANCE", "PRINCIPAL"])
-    .optional()
     .default("USER"),
-  isActive: z.boolean().optional().default(true),
+  isActive: z.boolean().default(true),
 });
 
-/**
- * Update user schema with partial validation
- */
+/* =====================================================
+   Update User Schema
+===================================================== */
+
 export const updateUserSchema = z
   .object({
     username: usernameSchema.optional(),
@@ -108,6 +121,6 @@ export const updateUserSchema = z
     role: z.enum(["USER", "SECURITY", "MAINTENANCE", "PRINCIPAL"]).optional(),
     isActive: z.boolean().optional(),
   })
-  .refine((val) => Object.keys(val).length > 0, {
+  .refine((data) => Object.keys(data).length > 0, {
     message: "At least one field must be provided for update",
   });

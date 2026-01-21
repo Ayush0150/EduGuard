@@ -19,7 +19,7 @@ const FIXED_ADMIN = {
 
 async function setupFixedAdmin() {
   try {
-    console.log("🔧 Setting up fixed admin account...\n");
+    process.stdout.write("🔧 Setting up fixed admin account...\n\n");
 
     await connectMongo(env.mongoUri);
 
@@ -29,12 +29,14 @@ async function setupFixedAdmin() {
     });
 
     if (existingAdmin) {
-      console.log("✅ Admin account already exists!");
-      console.log(`   Email: ${FIXED_ADMIN.email}`);
-      console.log(`   Username: ${existingAdmin.username}`);
-      console.log(`   Role: ${existingAdmin.role}`);
-      console.log(`   Active: ${existingAdmin.isActive}`);
-      console.log("\n💡 To reset password, use: npm run reset-admin-password");
+      process.stdout.write("✅ Admin account already exists!\n");
+      process.stdout.write(`   Email: ${FIXED_ADMIN.email}\n`);
+      process.stdout.write(`   Username: ${existingAdmin.username}\n`);
+      process.stdout.write(`   Role: ${existingAdmin.role}\n`);
+      process.stdout.write(`   Active: ${existingAdmin.isActive}\n`);
+      process.stdout.write(
+        "\n💡 To reset password, use: npm run reset-admin-password\n"
+      );
     } else {
       // Create new admin
       const passwordHash = await hashPassword(FIXED_ADMIN.password);
@@ -47,24 +49,26 @@ async function setupFixedAdmin() {
         isActive: true,
       });
 
-      console.log("✅ Fixed admin account created successfully!");
-      console.log("\n📧 Admin Login Credentials:");
-      console.log(`   Email: ${FIXED_ADMIN.email}`);
-      console.log(`   Password: ${FIXED_ADMIN.password}`);
-      console.log(`   Role: ${FIXED_ADMIN.role}`);
-      console.log(
-        "\n🔐 You can reset this password using the forgot password flow"
+      process.stdout.write("✅ Fixed admin account created successfully!\n");
+      process.stdout.write("\n📧 Admin Login Credentials:\n");
+      process.stdout.write(`   Email: ${FIXED_ADMIN.email}\n`);
+      process.stdout.write(`   Password: ${FIXED_ADMIN.password}\n`);
+      process.stdout.write(`   Role: ${FIXED_ADMIN.role}\n`);
+      process.stdout.write(
+        "\n🔐 You can reset this password using the forgot password flow\n"
       );
-      console.log("   or run: npm run reset-admin-password");
+      process.stdout.write("   or run: npm run reset-admin-password\n");
     }
 
-    console.log("\n🌐 Admin Login URL: http://localhost:5174/login/admin");
-    console.log("\n✨ Setup complete!");
+    process.stdout.write(
+      "\n🌐 Admin Login URL: http://localhost:5174/login/admin\n"
+    );
+    process.stdout.write("\n✨ Setup complete!\n");
 
     await mongoose.disconnect();
     process.exit(0);
   } catch (err) {
-    console.error("❌ Error setting up admin:", err.message);
+    process.stderr.write(`❌ Error setting up admin: ${err.message}\n`);
     process.exit(1);
   }
 }

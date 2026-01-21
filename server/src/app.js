@@ -2,40 +2,51 @@ import compression from "compression";
 import cors from "cors";
 import express from "express";
 import helmet from "helmet";
+
 import { env } from "./core/config/env.js";
 import { errorHandler } from "./core/middlewares/errorHandler.js";
 import { notFound } from "./core/middlewares/notFound.js";
 import { sanitizeInput } from "./core/middlewares/sanitize.js";
 import { logger } from "./core/utils/logger.js";
+
 import { adminRouter } from "./modules/admin/admin.routes.js";
 import { authRouter } from "./modules/auth/auth.routes.js";
 
 /**
- * Create and configure Express application
+ * Express Application Factory
+ * ---------------------------
+ * Creates and configures the EduGuard API server.
  *
- * Middleware stack:
- * 1. Security headers (helmet)
- * 2. CORS configuration
- * 3. Body parsing (express.json)
- * 4. Input sanitization (XSS prevention)
- * 5. Request logging (development only)
- * 6. API routes
- * 7. 404 handler
- * 8. Global error handler
+ * Lifecycle:
+ * - Security
+ * - Performance
+ * - Network
+ * - Parsing
+ * - Sanitization
+ * - Logging
+ * - Routing
+ * - Error handling
  *
- * @returns {Express} Configured Express application
+ * @returns {import("express").Express}
  */
 export function createApp() {
   const app = express();
 
-  app.disable("x-powered-by");
+  /* =====================================================
+     Core Express Settings
+  ===================================================== */
 
+  app.disable("x-powered-by");
   app.set("trust proxy", 1);
+
+  /* =====================================================
+     Security Middleware
+  ===================================================== */
 
   app.use(
     helmet({
-      // API-only service; configure for production security
       crossOriginResourcePolicy: false,
+
       contentSecurityPolicy: env.isProduction
         ? {
             directives: {
@@ -46,6 +57,7 @@ export function createApp() {
             },
           }
         : false,
+
       hsts: env.isProduction
         ? {
             maxAge: 31536000,
@@ -56,39 +68,102 @@ export function createApp() {
     })
   );
 
+  /* =====================================================
+     Performance
+  ===================================================== */
+
   app.use(compression());
+
+  /* =====================================================
+     CORS Configuration
+  ===================================================== */
+
+  const devOriginAllowlist = [/^http:\/\/(localhost|127\.0\.0\.1):\d+$/];
 
   app.use(
     cors({
-      origin: env.clientOrigin,
+      origin: (origin, callback) => {
+        // Allow non-browser clients (Postman, curl)
+        if (!origin) return callback(null, true);
+
+        // Production: strict origin
+        if (env.isProduction) {
+          return callback(null, origin === env.clientOrigin);
+        }
+
+        // Development: allow localhost on any port
+        if (origin === env.clientOrigin) return callback(null, true);
+        if (devOriginAllowlist.some((re) => re.test(origin)))
+          return callback(null, true);
+
+        return callback(new Error(`CORS blocked origin: ${origin}`));
+      },
       credentials: true,
     })
   );
 
+  /* =====================================================
+     Body Parsing
+  ===================================================== */
+
   app.use(express.json({ limit: "1mb" }));
 
-  // Sanitize all inputs to prevent XSS and injection attacks
+  /* =====================================================
+     Input Sanitization
+  ===================================================== */
+
   app.use(sanitizeInput);
 
-  // Request logging middleware (only in development)
+  /* =====================================================
+     Request Logging (development only)
+  ===================================================== */
+
   if (!env.isProduction) {
     app.use((req, res, next) => {
       const start = Date.now();
+
       res.on("finish", () => {
         const duration = Date.now() - start;
-        logger.perf.apiRequest(req.method, req.path, duration, res.statusCode);
+        logger.perf.apiRequest(
+          req.method,
+          req.originalUrl,
+          duration,
+          res.statusCode
+        );
       });
+
       next();
     });
   }
 
-  /* ✅ API ROUTES */
+  /* =====================================================
+     Health Check
+  ===================================================== */
+
+  app.get("/health", (req, res) => {
+    res.status(200).json({
+      status: "ok",
+      service: "EduGuard API",
+      environment: env.nodeEnv,
+      uptime: process.uptime(),
+      timestamp: new Date().toISOString(),
+    });
+  });
+
+  /* =====================================================
+     API Routes
+  ===================================================== */
+
   app.use("/api/v1/auth", authRouter);
   app.use("/api/v1/admin", adminRouter);
 
-  /* ❌ DO NOT change order below */
+  /* =====================================================
+     Error Handling (DO NOT CHANGE ORDER)
+  ===================================================== */
+
   app.use(notFound);
   app.use(errorHandler);
 
   return app;
 }
+

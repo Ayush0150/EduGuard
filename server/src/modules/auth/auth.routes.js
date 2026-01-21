@@ -1,37 +1,59 @@
 import { Router } from "express";
+
 import { requireAuth } from "../../core/middlewares/auth.js";
 import {
   authRateLimiter,
   loginRateLimiter,
 } from "../../core/middlewares/rateLimit.js";
 import { validateBody } from "../../core/middlewares/validate.js";
+
 import {
   getMe,
-  postAdminLogin,
-  postAdminRequestOtp,
-  postAdminResetPassword,
-  postAdminVerifyOtp,
   postLogin,
   postLogout,
+
+  postAdminLogin,
+  postAdminRequestOtp,
+  postAdminVerifyOtp,
+  postAdminResetPassword,
+
   postRequestOtp,
-  postResetPassword,
   postVerifyOtp,
+  postResetPassword,
 } from "./auth.controller.js";
+
 import {
   loginSchema,
   requestOtpSchema,
-  resetPasswordSchema,
   verifyOtpSchema,
+  resetPasswordSchema,
 } from "./auth.validation.js";
+
+/**
+ * =====================================================
+ * Authentication Routes
+ * =====================================================
+ *
+ * Base path: /api/v1/auth
+ *
+ * Route groups:
+ * - Public authentication
+ * - Admin authentication
+ * - Password recovery
+ * - Protected identity
+ */
 
 export const authRouter = Router();
 
-/**
- * AUTH ROUTES
- * Base path: /api/v1/auth
- */
+/* =====================================================
+   Global auth protection (rate limiting)
+===================================================== */
 
 authRouter.use(authRateLimiter);
+
+/* =====================================================
+   Public Authentication
+===================================================== */
 
 authRouter.post(
   "/login",
@@ -39,6 +61,16 @@ authRouter.post(
   validateBody(loginSchema),
   postLogin
 );
+
+authRouter.post(
+  "/logout",
+  postLogout
+);
+
+/* =====================================================
+   Admin Authentication
+===================================================== */
+
 authRouter.post(
   "/admin/login",
   loginRateLimiter,
@@ -46,7 +78,10 @@ authRouter.post(
   postAdminLogin
 );
 
-// Admin-only password reset flow (strict)
+/* =====================================================
+   Admin Password Recovery (Strict)
+===================================================== */
+
 authRouter.post(
   "/admin/forgot-password/request-otp",
   validateBody(requestOtpSchema),
@@ -65,9 +100,9 @@ authRouter.post(
   postAdminResetPassword
 );
 
-authRouter.post("/logout", postLogout);
-
-authRouter.get("/me", requireAuth, getMe);
+/* =====================================================
+   User Password Recovery
+===================================================== */
 
 authRouter.post(
   "/forgot-password/request-otp",
@@ -85,4 +120,14 @@ authRouter.post(
   "/forgot-password/reset",
   validateBody(resetPasswordSchema),
   postResetPassword
+);
+
+/* =====================================================
+   Protected Routes
+===================================================== */
+
+authRouter.get(
+  "/me",
+  requireAuth,
+  getMe
 );

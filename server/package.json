@@ -6,9 +6,13 @@
   "main": "src/server.js",
   "scripts": {
     "dev": "nodemon src/server.js",
-    "start": "node src/server.js",
-    "setup-admin": "node scripts/setup-fixed-admin.js",
-    "reset-admin-password": "node scripts/reset-admin-password.js"
+    "start": "NODE_ENV=production node src/server.js",
+    "server": "npm run dev",
+    "setup-admin": "node scripts/create-admin.js",
+    "create-admin": "node scripts/create-admin.js",
+    "ensure-admin": "node scripts/ensure-super-admin.js",
+    "reset-admin-password": "node scripts/reset-admin-password.js",
+    "lint": "echo \"No linter configured\""
   },
   "keywords": [],
   "author": "",

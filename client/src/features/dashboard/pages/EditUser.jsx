@@ -1,122 +1,113 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { toast } from "../../../core/utils/toastEmitter";
 import {
   validateEmail,
-  validatePassword,
   validateRole,
   validateUsername,
 } from "../../../core/utils/validation";
+import { FormInput } from "../../auth/components/FormInput";
+import { SubmitButton } from "../../auth/components/SubmitButton";
 import { getUserById, updateUser } from "../services/adminUserApi";
-
-const ADMIN_ROLES = ["ADMIN", "SUPER_ADMIN"];
-const REGULAR_ROLES = ["USER", "SECURITY", "MAINTENANCE", "PRINCIPAL"];
 
 export default function EditUser() {
   const { id } = useParams();
   const navigate = useNavigate();
 
   const [form, setForm] = useState({
-    username: "",
     email: "",
+    username: "",
     role: "USER",
-    password: "",
+    isActive: true,
   });
-  const [originalRole, setOriginalRole] = useState("");
-  const [isAdminUser, setIsAdminUser] = useState(false);
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const loadUser = useCallback(async () => {
-    try {
-      setLoading(true);
-      const user = await getUserById(id);
-      const userIsAdmin = ADMIN_ROLES.includes(user.role);
-
-      setOriginalRole(user.role || "USER");
-      setIsAdminUser(userIsAdmin);
-      setForm({
-        username: user.username || "",
-        email: user.email || "",
-        role: userIsAdmin ? "USER" : user.role || "USER",
-        password: "", // Never pre-fill password
-      });
-    } catch (err) {
-      toast.error("Unable to load user details. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  }, [id]);
+  /* ---------------------------------------------------
+     Load user
+  --------------------------------------------------- */
 
   useEffect(() => {
+    async function loadUser() {
+      try {
+        const data = await getUserById(id);
+
+        setForm({
+          email: data.email || "",
+          username: data.username || "",
+          role: data.role || "USER",
+          isActive: Boolean(data.isActive),
+        });
+      } catch {
+        toast.error("Failed to load user details.");
+        navigate("/admin", { replace: true });
+      } finally {
+        setLoading(false);
+      }
+    }
+
     loadUser();
-  }, [loadUser]);
+  }, [id, navigate]);
+
+  /* ---------------------------------------------------
+     Handlers
+  --------------------------------------------------- */
 
   function updateField(e) {
-    setForm({ ...form, [e.target.name]: e.target.value });
+    const { name, value, type, checked } = e.target;
+
+    setForm((prev) => ({
+      ...prev,
+      [name]: type === "checkbox" ? checked : value,
+    }));
   }
 
   async function onSubmit(e) {
     e.preventDefault();
-    setSaving(true);
 
-    // Client-side validation
     const emailValidation = validateEmail(form.email);
     const usernameValidation = validateUsername(form.username);
     const roleValidation = validateRole(form.role);
 
-    const errors = {};
-    if (!emailValidation.valid) errors.email = emailValidation.error;
-    if (!usernameValidation.valid) errors.username = usernameValidation.error;
-    if (!roleValidation.valid) errors.role = roleValidation.error;
-
-    // Only validate password if provided
-    if (form.password) {
-      const passwordValidation = validatePassword(form.password);
-      if (!passwordValidation.valid) errors.password = passwordValidation.error;
-    }
-
-    if (Object.keys(errors).length > 0) {
-      toast.error(
-        "Please check the form and correct any errors before submitting."
-      );
-      setSaving(false);
+    if (
+      !emailValidation.valid ||
+      !usernameValidation.valid ||
+      !roleValidation.valid
+    ) {
+      toast.error("Please correct the form errors before saving.");
       return;
     }
 
+    setSaving(true);
     try {
-      const payload = {
-        username: usernameValidation.value,
+      await updateUser(id, {
         email: emailValidation.value,
+        username: usernameValidation.value,
         role: roleValidation.value,
-      };
+        isActive: form.isActive,
+      });
 
-      // Only include password if it's being changed
-      if (form.password) {
-        const passwordValidation = validatePassword(form.password);
-        if (passwordValidation.valid) {
-          payload.password = passwordValidation.value;
-        }
-      }
-
-      await updateUser(id, payload);
-      toast.success("User updated successfully!");
+      toast.success("User updated successfully.");
       navigate("/admin");
-    } catch (err) {
-      const message = err?.response?.data?.message || "Failed to update user";
-      toast.error(message);
+    } catch {
+      toast.error("Failed to update user. Please try again.");
     } finally {
       setSaving(false);
     }
   }
 
+  /* ---------------------------------------------------
+     Render
+  --------------------------------------------------- */
+
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
+      <div className="flex items-center justify-center min-h-[60vh]">
         <div className="text-center">
-          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-indigo-600 border-r-transparent motion-reduce:animate-[spin_1.5s_linear_infinite]"></div>
-          <p className="mt-3 text-sm text-slate-600 dark:text-slate-400">
-            Loading user details...
+          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-brand-600 border-r-transparent"></div>
+          <p className="mt-3 text-sm text-surface-600 dark:text-surface-400">
+            Loading user...
           </p>
         </div>
       </div>
@@ -124,177 +115,102 @@ export default function EditUser() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 py-6 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-3xl mx-auto">
-        {/* Compact Header */}
-        <div className="mb-6">
-          <Link
-            to="/admin"
-            className="inline-flex items-center text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 mb-3"
-          >
-            <svg
-              className="w-4 h-4 mr-1"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M15 19l-7-7 7-7"
-              />
-            </svg>
-            Back to Dashboard
-          </Link>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
-            Edit User
+    <div className="animate-fade-in mx-auto max-w-3xl py-4">
+      <Link
+        to="/admin"
+        className="group mb-8 inline-flex items-center gap-2 text-sm font-bold text-surface-500 hover:text-brand-600 transition-colors"
+      >
+        <svg
+          className="h-4 w-4 transition-transform group-hover:-translate-x-1"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M10 19l-7-7m0 0l7-7m-7 7h18"
+          />
+        </svg>
+        Back
+      </Link>
+
+      <div className="overflow-hidden rounded-none border border-surface-200 bg-white shadow-soft dark:border-surface-800 dark:bg-surface-900">
+        <header className="border-b border-surface-100 p-8 dark:border-surface-800">
+          <h1 className="text-2xl font-black text-surface-900 dark:text-white">
+            Edit user
           </h1>
-        </div>
+        </header>
 
-        {/* Main Card */}
-        <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700">
-          {/* Admin Warning Banner */}
-          {isAdminUser && (
-            <div className="bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-800 px-4 py-3">
-              <div className="flex items-center gap-2">
-                <svg
-                  className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                  />
-                </svg>
-                <p className="text-sm text-amber-900 dark:text-amber-200">
-                  <span className="font-semibold">Administrator Account</span> -
-                  This user has {originalRole} privileges. Admin roles cannot be
-                  modified.
-                </p>
-              </div>
-            </div>
-          )}
+        <form onSubmit={onSubmit} className="p-8 space-y-8">
+          <div className="grid gap-8 md:grid-cols-2">
+            <FormInput
+              id="username"
+              name="username"
+              label="Username"
+              value={form.username}
+              onChange={updateField}
+              required
+            />
 
-          {/* Form */}
-          <form onSubmit={onSubmit} className="p-6 space-y-6">
-            {/* Username and Email - Side by Side */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
-                  Username
-                </label>
-                <input
-                  name="username"
-                  value={form.username}
-                  onChange={updateField}
-                  required
-                  autoComplete="username"
-                  className="w-full px-3 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600
-                  bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm
-                  focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500
-                  transition-colors"
-                  placeholder="Enter username"
-                />
-              </div>
+            <FormInput
+              id="email"
+              name="email"
+              type="email"
+              label="Email address"
+              value={form.email}
+              onChange={updateField}
+              required
+            />
 
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
-                  Email Address
-                </label>
-                <input
-                  type="email"
-                  name="email"
-                  value={form.email}
-                  onChange={updateField}
-                  required
-                  autoComplete="email"
-                  className="w-full px-3 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600
-                  bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm
-                  focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500
-                  transition-colors"
-                  placeholder="user@example.com"
-                />
-              </div>
-            </div>
-
-            {/* Password and Role - Side by Side */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
-                  New Password{" "}
-                  <span className="text-slate-500 text-xs">(optional)</span>
-                </label>
-                <input
-                  type="password"
-                  name="password"
-                  value={form.password}
-                  onChange={updateField}
-                  autoComplete="new-password"
-                  placeholder="Leave empty to keep current"
-                  className="w-full px-3 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600
-                  bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm
-                  focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500
-                  transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
-                  Role
-                </label>
-                {isAdminUser ? (
-                  <input
-                    type="text"
-                    value={originalRole}
-                    disabled
-                    className="w-full px-3 py-2.5 rounded-lg border border-amber-300 dark:border-amber-700
-                    bg-amber-50 dark:bg-amber-950/30 text-amber-900 dark:text-amber-200 text-sm font-medium
-                    cursor-not-allowed"
-                  />
-                ) : (
-                  <select
-                    name="role"
-                    value={form.role}
-                    onChange={updateField}
-                    className="w-full px-3 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600
-                    bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm
-                    focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500
-                    transition-colors cursor-pointer"
-                  >
-                    <option value="USER">User</option>
-                    <option value="SECURITY">Security</option>
-                    <option value="MAINTENANCE">Maintenance</option>
-                    <option value="PRINCIPAL">Principal</option>
-                  </select>
-                )}
-              </div>
-            </div>
-
-            {/* Buttons */}
-            <div className="flex gap-3 pt-6">
-              <button
-                type="submit"
-                disabled={saving}
-                className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg
-                font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-surface-700 dark:text-surface-300">
+                Role
+              </label>
+              <select
+                name="role"
+                value={form.role}
+                onChange={updateField}
+                className="mt-2 w-full rounded-none border border-surface-200 bg-surface-50 px-4 py-3.5 text-base text-surface-900 transition-all focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/10 dark:border-surface-800 dark:bg-surface-950/50 dark:text-white"
               >
-                {saving ? "Saving..." : "Save Changes"}
-              </button>
-              <Link
-                to="/admin"
-                className="px-6 py-2.5 border border-slate-300 hover:bg-slate-50 text-slate-700
-                rounded-lg font-medium transition-colors"
-              >
-                Cancel
-              </Link>
+                <option value="USER">Standard User</option>
+                <option value="SECURITY">Security Officer</option>
+                <option value="MAINTENANCE">Maintenance Crew</option>
+                <option value="PRINCIPAL">Academic Principal</option>
+              </select>
             </div>
-          </form>
-        </div>
+
+            <div className="flex items-center gap-3 pt-8">
+              <input
+                type="checkbox"
+                name="isActive"
+                checked={form.isActive}
+                onChange={updateField}
+                className="h-4.5 w-4.5 rounded-none border-surface-300 bg-surface-50 text-brand-600 focus:ring-brand-500/20 dark:border-surface-700 dark:bg-surface-950"
+              />
+              <span className="text-sm font-semibold text-surface-700 dark:text-surface-300">
+                Active
+              </span>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-4 pt-6 sm:flex-row">
+            <SubmitButton
+              busy={saving}
+              className="sm:flex-1"
+              loadingText="Saving..."
+            >
+              Save Changes
+            </SubmitButton>
+            <Link
+              to="/admin"
+              className="inline-flex items-center justify-center rounded-none border border-surface-200 px-8 py-4 text-base font-bold text-surface-600 transition-all hover:bg-surface-50 dark:border-surface-800 dark:text-surface-400 dark:hover:bg-surface-800/50"
+            >
+              Cancel
+            </Link>
+          </div>
+        </form>
       </div>
     </div>
   );

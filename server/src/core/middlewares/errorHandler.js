@@ -2,43 +2,78 @@ import { env } from "../config/env.js";
 import { logger } from "../utils/logger.js";
 
 /**
- * Global error handler middleware
- * - Logs errors with context in all environments
- * - Returns sanitized error messages in production
- * - Includes stack traces only in development
+ * =====================================================
+ * Global Error Handler
+ * =====================================================
  *
- * @param {Error} err - Error object
- * @param {Request} req - Express request
- * @param {Response} res - Express response
- * @param {Function} next - Next middleware
+ * Responsibilities:
+ * - Centralized error handling
+ * - Safe responses in production
+ * - Detailed debugging in development
+ * - Structured logging for monitoring systems
+ *
+ * MUST be registered last in Express middleware chain.
  */
 export function errorHandler(err, req, res, next) {
-  const status = Number(err?.statusCode ?? 500);
-  const message = err?.message ?? "Internal Server Error";
+  const statusCode = Number(err?.statusCode || err?.status || 500);
 
-  // Log server errors with full context
-  if (status >= 500) {
-    logger.error(message, {
-      stack: err.stack,
+  const isOperational = statusCode < 500;
+
+  const safeMessage =
+    statusCode === 500
+      ? "Internal server error"
+      : err?.message || "Request failed";
+
+  /* ---------------------------------------------------
+     Structured Logging
+  --------------------------------------------------- */
+
+  if (!isOperational) {
+    // System / server failure
+    logger.error("System error", {
+      category: "api",
+      statusCode,
+      message: err?.message,
       method: req.method,
-      url: req.url,
+      path: req.originalUrl,
+      ip: req.ip,
+      userId: req.user?.id,
+      stack: env.isDevelopment ? err.stack : undefined,
+    });
+  } else {
+    // Client / validation / auth error
+    logger.warn("Operational error", {
+      category: "api",
+      statusCode,
+      message: err?.message,
+      method: req.method,
+      path: req.originalUrl,
       ip: req.ip,
       userId: req.user?.id,
     });
   }
 
-  // Security: Don't expose internal errors in production
-  if (env.isProduction && status === 500) {
+  /* ---------------------------------------------------
+     Production-safe response
+  --------------------------------------------------- */
+
+  if (env.isProduction && statusCode === 500) {
     return res.status(500).json({
       success: false,
       message: "Internal server error",
     });
   }
 
-  // Development: Include stack trace for debugging
-  res.status(status).json({
+  /* ---------------------------------------------------
+     Development / non-critical response
+  --------------------------------------------------- */
+
+  return res.status(statusCode).json({
     success: false,
-    message,
-    ...(env.isDevelopment && { stack: err.stack }),
+    message: safeMessage,
+    ...(env.isDevelopment && {
+      error: err.name,
+      stack: err.stack,
+    }),
   });
 }

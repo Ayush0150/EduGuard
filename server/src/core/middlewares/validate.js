@@ -1,26 +1,59 @@
 /**
- * Zod request body validation middleware.
+ * Zod request body validation middleware
+ * -------------------------------------
  *
- * Keeps error format consistent across routes.
+ * Features:
+ * - Consistent error response format
+ * - Safe parsing (never throws)
+ * - Clean error mapping
+ * - Prevents malformed payloads from reaching controllers
+ *
+ * Used in:
+ * - Auth routes
+ * - Admin routes
+ * - Any protected API input
  */
+
 export function validateBody(schema) {
   return (req, res, next) => {
-    const result = schema.safeParse(req.body);
+    const parsed = schema.safeParse(req.body);
 
-    if (!result.success) {
-      const errors = result.error.issues.map((issue) => ({
-        path: issue.path.join("."),
+    if (!parsed.success) {
+      const errors = parsed.error.issues.map((issue) => ({
+        field: issue.path.join("."),
         message: issue.message,
       }));
 
       return res.status(400).json({
         success: false,
-        message: errors[0]?.message || "Validation error",
+        message: errors[0]?.message || "Invalid request data",
         errors,
       });
     }
 
-    req.body = result.data;
+    // ✅ Replace body with validated & transformed data
+    req.body = parsed.data;
+
+    next();
+  };
+}
+
+/**
+ * Validate MongoDB ObjectId route param
+ * @param {string} paramName
+ */
+export function validateObjectIdParam(paramName = "id") {
+  return (req, res, next) => {
+    const value = String(req.params?.[paramName] ?? "").trim();
+    const isValid = /^[0-9a-fA-F]{24}$/.test(value);
+
+    if (!isValid) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid user id",
+      });
+    }
+
     next();
   };
 }

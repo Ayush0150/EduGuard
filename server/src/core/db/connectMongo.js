@@ -1,6 +1,29 @@
 import mongoose from "mongoose";
 import { logger } from "../utils/logger.js";
 
+async function dropDangerousUserTtlIndexIfPresent() {
+  try {
+    const { User } = await import("../../modules/users/user.model.js");
+    const indexes = await User.collection.indexes();
+
+    const ttlIndex = indexes.find(
+      (idx) =>
+        idx?.key?.resetOtpExpiresAt === 1 &&
+        typeof idx?.expireAfterSeconds === "number"
+    );
+
+    if (!ttlIndex) return;
+
+    await User.collection.dropIndex(ttlIndex.name);
+    logger.warn("Dropped dangerous TTL index on users.resetOtpExpiresAt", {
+      index: ttlIndex.name,
+    });
+  } catch (err) {
+    // Best-effort only; don't block server start.
+    logger.warn("TTL index cleanup skipped/failed", { error: err.message });
+  }
+}
+
 export async function connectMongo(mongoUri) {
   mongoose.set("strictQuery", true);
 
@@ -19,6 +42,8 @@ export async function connectMongo(mongoUri) {
       host: mongoose.connection.host,
       name: mongoose.connection.name,
     });
+
+    await dropDangerousUserTtlIndexIfPresent();
 
     // Log connection events
     mongoose.connection.on("error", (err) => {

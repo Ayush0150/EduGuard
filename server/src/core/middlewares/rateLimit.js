@@ -1,9 +1,25 @@
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
+
+/**
+ * =====================================================
+ * EduGuard Rate Limiter Factory
+ * =====================================================
+ *
+ * Features:
+ * - Centralized config
+ * - Consistent API error format
+ * - Safe for reverse proxies
+ * - Production ready
+ */
+
+/* -----------------------------------------------------
+   Factory
+----------------------------------------------------- */
 
 export function createRateLimiter({
-  windowMs,
-  max,
-  message,
+  windowMs = 15 * 60 * 1000,
+  max = 100,
+  message = "Too many requests. Please try again later.",
   standardHeaders = true,
   legacyHeaders = false,
 } = {}) {
@@ -12,19 +28,37 @@ export function createRateLimiter({
     max,
     standardHeaders,
     legacyHeaders,
-    message: {
-      success: false,
-      message: message ?? "Too many requests. Please try again later.",
+
+    keyGenerator: (req) => {
+      return `${ipKeyGenerator(req)}:${req.originalUrl}`;
+    },
+
+    skip: (req) => {
+      // Never rate-limit health checks
+      return req.path === "/health";
+    },
+
+    handler: (req, res) => {
+      return res.status(429).json({
+        success: false,
+        message,
+      });
     },
   });
 }
 
+/* -----------------------------------------------------
+   Rate Limiters
+----------------------------------------------------- */
+
+// General auth protection
 export const authRateLimiter = createRateLimiter({
   windowMs: 15 * 60 * 1000,
   max: 100,
   message: "Too many requests. Please try again in 15 minutes.",
 });
 
+// Strict login protection
 export const loginRateLimiter = createRateLimiter({
   windowMs: 15 * 60 * 1000,
   max: 20,

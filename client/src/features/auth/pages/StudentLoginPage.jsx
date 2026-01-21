@@ -1,14 +1,14 @@
 /**
- * AdminLoginPage
- * --------------
- * Secure administrative authentication interface
- * for the EduGuard control panel.
+ * StudentLoginPage
+ * ----------------
+ * Enterprise-grade student authentication page
+ * for EduGuard Smart College Monitoring System.
  */
 
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
-import adminImg from "../../../assets/admin-img.avif";
+import collegeImg from "../../../assets/college-img.png";
 
 import { decodeJwt } from "../../../core/auth/jwt";
 import {
@@ -18,7 +18,6 @@ import {
 
 import { toast } from "../../../core/utils/toastEmitter";
 import { validateIdentifier } from "../../../core/utils/validation";
-
 import { login } from "../api/authApi";
 
 import { AuthLayout } from "../components/AuthLayout";
@@ -26,22 +25,27 @@ import { FormInput } from "../components/FormInput";
 import { PasswordInput } from "../components/PasswordInput";
 import { SubmitButton } from "../components/SubmitButton";
 
-export default function AdminLoginPage() {
+export default function StudentLoginPage() {
   const navigate = useNavigate();
 
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(true);
+
   const [busy, setBusy] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
 
+  /* ---------------------------------------------------
+     Derived state
+  --------------------------------------------------- */
+
   const canSubmit = useMemo(
-    () => identifier.trim().length > 0 && password.length > 0,
+    () => identifier.trim() !== "" && password.trim() !== "",
     [identifier, password]
   );
 
   /* ---------------------------------------------------
-     Auto-redirect if already authenticated
+     Auto redirect if already logged in
   --------------------------------------------------- */
 
   useEffect(() => {
@@ -50,9 +54,10 @@ export default function AdminLoginPage() {
 
     const role = user?.role ?? decodeJwt(token)?.role;
 
-    if (role === "ADMIN" || role === "SUPER_ADMIN") {
-      navigate("/admin", { replace: true });
-    }
+    navigate(
+      role === "ADMIN" || role === "SUPER_ADMIN" ? "/admin" : "/dashboard",
+      { replace: true }
+    );
   }, [navigate]);
 
   /* ---------------------------------------------------
@@ -61,19 +66,26 @@ export default function AdminLoginPage() {
 
   async function onSubmit(e) {
     e.preventDefault();
+
     setFieldErrors({});
+
+    const errors = {};
 
     const identifierCheck = validateIdentifier(identifier);
 
-    const errors = {};
-    if (!identifierCheck.valid) errors.identifier = identifierCheck.error;
+    if (!identifierCheck.valid) {
+      errors.identifier = identifierCheck.error;
+    }
 
-    if (!password.trim()) errors.password = "Password is required";
+    if (!password.trim()) {
+      errors.password = "Please enter your password";
+    }
 
-    if (Object.keys(errors).length > 0) {
+    if (Object.keys(errors).length) {
+      setFieldErrors(errors);
+
       const message = errors.identifier || errors.password || "Invalid input";
 
-      setFieldErrors(errors);
       toast(message, "error");
       return;
     }
@@ -81,14 +93,11 @@ export default function AdminLoginPage() {
     setBusy(true);
 
     try {
-      const data = await login(
-        {
-          identifier: identifierCheck.value,
-          password,
-          remember,
-        },
-        { admin: true }
-      );
+      const data = await login({
+        identifier: identifierCheck.value,
+        password,
+        remember,
+      });
 
       setAuthSession({
         token: data.token,
@@ -96,13 +105,17 @@ export default function AdminLoginPage() {
         remember,
       });
 
-      toast("Administrator access granted.", "success");
+      toast("Signed in successfully", "success");
 
-      navigate("/admin", { replace: true });
+      const role = data.user?.role ?? decodeJwt(data.token)?.role;
+
+      navigate(
+        role === "ADMIN" || role === "SUPER_ADMIN" ? "/admin" : "/dashboard",
+        { replace: true }
+      );
     } catch (err) {
       const message =
-        err?.response?.data?.message ||
-        "Authentication failed. Please verify your credentials.";
+        err?.response?.data?.message || "Unable to sign in. Please try again.";
 
       toast(message, "error");
     } finally {
@@ -111,16 +124,16 @@ export default function AdminLoginPage() {
   }
 
   /* ---------------------------------------------------
-     UI
+     Render
   --------------------------------------------------- */
 
   return (
     <AuthLayout
-      title="Admin sign in"
-      subtitle="Enter your admin credentials to continue."
-      backgroundImage={adminImg}
-      backgroundAlt="Administrative security interface"
-      logoLink="/login/admin"
+      title="Student sign in"
+      subtitle="Enter your student credentials to continue."
+      backgroundImage={collegeImg}
+      backgroundAlt="College campus"
+      logoLink="/login/student"
     >
       <form className="space-y-6" onSubmit={onSubmit} noValidate>
         {/* Identifier */}
@@ -134,7 +147,7 @@ export default function AdminLoginPage() {
               setFieldErrors((p) => ({ ...p, identifier: "" }));
             }
           }}
-          placeholder="admin@eduguard.com"
+          placeholder="student@college.edu"
           error={fieldErrors.identifier}
           required
           autoComplete="username"
@@ -151,6 +164,7 @@ export default function AdminLoginPage() {
               setFieldErrors((p) => ({ ...p, password: "" }));
             }
           }}
+          placeholder="••••••••"
           error={fieldErrors.password}
           required
         />
@@ -164,14 +178,12 @@ export default function AdminLoginPage() {
               onChange={(e) => setRemember(e.target.checked)}
               className="h-4.5 w-4.5 rounded-none border-surface-300 bg-surface-50 text-brand-600 focus:ring-brand-500/20 dark:border-surface-700 dark:bg-surface-950"
             />
-            <span className="select-none font-medium">
-              Remember this device
-            </span>
+            <span className="select-none">Remember this device</span>
           </label>
 
           <Link
-            to="/admin/forgot-password"
-            className="text-sm font-semibold text-brand-600 hover:underline underline-offset-4 dark:text-brand-400"
+            to="/forgot-password"
+            className="text-sm font-medium text-brand-600 hover:underline underline-offset-4 dark:text-brand-400"
           >
             Forgot password?
           </Link>
@@ -182,11 +194,11 @@ export default function AdminLoginPage() {
           Sign in
         </SubmitButton>
 
-        {/* Footer */}
+        {/* Footer link */}
         <div className="pt-4 text-center">
           <Link
             to="/login"
-            className="text-sm font-semibold text-brand-600 hover:underline underline-offset-4"
+            className="text-sm font-medium text-brand-600 hover:underline underline-offset-4"
           >
             Back to sign in
           </Link>

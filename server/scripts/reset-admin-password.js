@@ -7,80 +7,83 @@ import { User } from "../src/modules/users/user.model.js";
 
 const ADMIN_EMAIL = "eduguard.noreply@gmail.com";
 
+/* ===============================
+   CLI helpers
+================================ */
 const rl = readline.createInterface({
   input: process.stdin,
   output: process.stdout,
 });
 
-function question(query) {
-  return new Promise((resolve) => rl.question(query, resolve));
+const ask = (q) =>
+  new Promise((resolve) => rl.question(q, (a) => resolve(a.trim())));
+
+/* ===============================
+   Password validation
+================================ */
+function validatePassword(password) {
+  if (password.length < 8) return "minimum 8 characters required";
+  if (!/[A-Z]/.test(password)) return "must contain an uppercase letter";
+  if (!/[a-z]/.test(password)) return "must contain a lowercase letter";
+  if (!/\d/.test(password)) return "must contain a number";
+  if (!/[^A-Za-z0-9]/.test(password)) return "must contain a special character";
+  return null;
 }
 
+/* ===============================
+   Main logic
+================================ */
 async function resetAdminPassword() {
   try {
-    console.log("🔐 Reset Admin Password\n");
-    console.log(`Admin Email: ${ADMIN_EMAIL}\n`);
+    process.stdout.write("\n🔐 RESET SUPER ADMIN PASSWORD\n");
+    process.stdout.write("─────────────────────────────\n");
+    process.stdout.write(`Admin Email: ${ADMIN_EMAIL}\n\n`);
 
     await connectMongo(env.mongoUri);
 
     const admin = await User.findOne({ email: ADMIN_EMAIL });
 
     if (!admin) {
-      console.error(`❌ Admin account not found: ${ADMIN_EMAIL}`);
-      console.log("\n💡 Run: npm run setup-admin");
-      await mongoose.disconnect();
+      process.stderr.write(`❌ Admin not found: ${ADMIN_EMAIL}\n`);
+      process.stdout.write("💡 Run: npm run setup-admin\n");
       process.exit(1);
     }
 
-    // Get new password
-    const newPassword = await question("Enter new password: ");
+    const newPassword = await ask("New password: ");
 
-    if (!newPassword || newPassword.length < 8) {
-      console.error("❌ Password must be at least 8 characters");
-      await mongoose.disconnect();
+    const error = validatePassword(newPassword);
+    if (error) {
+      process.stderr.write(`❌ Password ${error}\n`);
       process.exit(1);
     }
 
-    // Validate password strength
-    const hasUpper = /[A-Z]/.test(newPassword);
-    const hasLower = /[a-z]/.test(newPassword);
-    const hasNumber = /\d/.test(newPassword);
-    const hasSymbol = /[^A-Za-z0-9]/.test(newPassword);
+    const confirm = await ask("Confirm password: ");
 
-    if (!hasUpper || !hasLower || !hasNumber || !hasSymbol) {
-      console.error(
-        "❌ Password must include: uppercase, lowercase, number, and symbol"
-      );
-      await mongoose.disconnect();
+    if (newPassword !== confirm) {
+      process.stderr.write("❌ Passwords do not match\n");
       process.exit(1);
     }
 
-    // Confirm password
-    const confirmPassword = await question("Confirm new password: ");
-
-    if (newPassword !== confirmPassword) {
-      console.error("❌ Passwords do not match");
-      await mongoose.disconnect();
-      process.exit(1);
-    }
-
-    // Update password
     admin.passwordHash = await hashPassword(newPassword);
+
+    // clear reset fields
     admin.resetOtpHash = null;
     admin.resetOtpExpiresAt = null;
     admin.resetTokenHash = null;
     admin.resetTokenExpiresAt = null;
+
     await admin.save();
 
-    console.log("\n✅ Password updated successfully!");
-    console.log(`\n📧 Admin Login: ${ADMIN_EMAIL}`);
-    console.log("🌐 Login URL: http://localhost:5174/login/admin");
+    process.stdout.write("\n✅ Password reset successful!\n");
+    process.stdout.write(`📧 Admin: ${ADMIN_EMAIL}\n`);
+    process.stdout.write("🌐 Login: http://localhost:5174/login/admin\n\n");
 
     await mongoose.disconnect();
     rl.close();
     process.exit(0);
   } catch (err) {
-    console.error("❌ Error resetting password:", err.message);
+    process.stderr.write(`\n❌ Reset failed: ${err.message}\n`);
+    await mongoose.disconnect();
     rl.close();
     process.exit(1);
   }

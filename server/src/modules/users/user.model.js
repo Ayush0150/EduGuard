@@ -1,18 +1,51 @@
 import mongoose from "mongoose";
 
+/**
+ * User Schema
+ * -----------
+ * Central identity model for EduGuard system.
+ *
+ * Stores:
+ * - authentication credentials
+ * - role-based access control
+ * - account status
+ * - password recovery metadata
+ */
+
 const userSchema = new mongoose.Schema(
   {
-    username: { type: String, required: true, trim: true },
+    /* ---------------------------------------------------
+       Core Identity
+    --------------------------------------------------- */
+
+    username: {
+      type: String,
+      required: true,
+      trim: true,
+      minlength: 3,
+      maxlength: 50,
+    },
+
     email: {
       type: String,
       required: true,
       lowercase: true,
       trim: true,
+      maxlength: 255,
     },
-    passwordHash: { type: String, required: true, select: false },
-    role: {
+
+    passwordHash: {
       type: String,
       required: true,
+      select: false, // never returned by default
+    },
+
+    /* ---------------------------------------------------
+       Authorization
+    --------------------------------------------------- */
+
+    role: {
+      type: String,
       enum: [
         "SUPER_ADMIN",
         "ADMIN",
@@ -22,24 +55,56 @@ const userSchema = new mongoose.Schema(
         "USER",
       ],
       default: "USER",
+      required: true,
     },
-    isActive: { type: Boolean, default: true },
 
-    resetOtpHash: { type: String, default: null },
-    resetOtpExpiresAt: { type: Date, default: null },
-    resetTokenHash: { type: String, default: null },
-    resetTokenExpiresAt: { type: Date, default: null },
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
+
+    /* ---------------------------------------------------
+       Password Recovery
+    --------------------------------------------------- */
+
+    resetOtpHash: {
+      type: String,
+      default: null,
+      select: false,
+    },
+
+    resetOtpExpiresAt: {
+      type: Date,
+      default: null,
+    },
+
+    resetTokenHash: {
+      type: String,
+      default: null,
+      select: false,
+    },
+
+    resetTokenExpiresAt: {
+      type: Date,
+      default: null,
+    },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+    versionKey: false,
+  }
 );
 
-// Performance indexes for frequent queries
+/* =====================================================
+   Indexes (performance + integrity)
+===================================================== */
+
 userSchema.index({ email: 1 }, { unique: true });
 userSchema.index({ username: 1 }, { unique: true });
-userSchema.index({ role: 1, isActive: 1 }); // Compound index for admin queries
-userSchema.index(
-  { resetOtpExpiresAt: 1 },
-  { sparse: true, expireAfterSeconds: 0 }
-); // TTL index
+userSchema.index({ role: 1, isActive: 1 });
+
+/* =====================================================
+   Model Export
+===================================================== */
 
 export const User = mongoose.model("User", userSchema);

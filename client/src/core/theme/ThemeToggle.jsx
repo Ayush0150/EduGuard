@@ -1,31 +1,43 @@
-import { useState } from "react";
+/**
+ * ThemeToggle
+ * ------------
+ * Unified dark / light mode switch
+ * aligned with EduGuard design system.
+ */
+
+import { useEffect, useState } from "react";
 
 const THEME_KEY = "eduguard-theme";
+const DARK = "dark";
+const LIGHT = "light";
 
-function getIsDark() {
-  return document.documentElement.classList.contains("dark");
+/* -----------------------------------
+   Helpers
+----------------------------------- */
+
+function getInitialTheme() {
+  if (typeof window === "undefined") return LIGHT;
+
+  const stored = localStorage.getItem(THEME_KEY);
+  return stored === DARK ? DARK : LIGHT;
 }
 
-function applyIsDark(isDark) {
-  if (isDark) document.documentElement.classList.add("dark");
-  else document.documentElement.classList.remove("dark");
+function applyTheme(theme) {
+  const root = document.documentElement;
 
-  try {
-    localStorage.setItem(THEME_KEY, isDark ? "dark" : "light");
-  } catch {
-    // ignore
-  }
+  if (theme === DARK) root.classList.add(DARK);
+  else root.classList.remove(DARK);
+
+  localStorage.setItem(THEME_KEY, theme);
 }
+
+/* -----------------------------------
+   Icons
+----------------------------------- */
 
 function SunIcon() {
   return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      className="h-4 w-4"
-      aria-hidden="true"
-    >
+    <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
       <path
         d="M12 18a6 6 0 1 0 0-12 6 6 0 0 0 0 12Z"
         stroke="currentColor"
@@ -43,13 +55,7 @@ function SunIcon() {
 
 function MoonIcon() {
   return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      className="h-4 w-4"
-      aria-hidden="true"
-    >
+    <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
       <path
         d="M21 14.5A8.5 8.5 0 0 1 9.5 3a6.5 6.5 0 1 0 11.5 11.5Z"
         stroke="currentColor"
@@ -60,34 +66,61 @@ function MoonIcon() {
   );
 }
 
-export default function ThemeToggle({ className = "" }) {
-  const [isDark, setIsDark] = useState(() => getIsDark());
+/* -----------------------------------
+   Component
+----------------------------------- */
 
-  function onToggle() {
-    const next = !getIsDark();
-    applyIsDark(next);
-    setIsDark(next);
+export default function ThemeToggle({ className = "" }) {
+  const [theme, setTheme] = useState(getInitialTheme);
+
+  // Apply theme on change
+  useEffect(() => {
+    applyTheme(theme);
+  }, [theme]);
+
+  // Sync across browser tabs
+  useEffect(() => {
+    const onStorage = (e) => {
+      if (e.key === THEME_KEY && e.newValue) {
+        setTheme(e.newValue);
+      }
+    };
+
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
+
+  function toggleTheme() {
+    setTheme((prev) => (prev === DARK ? LIGHT : DARK));
   }
+
+  const isDark = theme === DARK;
 
   return (
     <button
       type="button"
-      onClick={onToggle}
-      className={`relative inline-flex h-9 w-16 items-center rounded-full border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-slate-900 ${
-        isDark
-          ? "border-slate-900 bg-slate-900 dark:border-slate-700"
-          : "border-slate-200 bg-white dark:border-slate-700"
-      } ${className}`}
-      aria-label={isDark ? "Turn off dark mode" : "Turn on dark mode"}
+      onClick={toggleTheme}
       aria-pressed={isDark}
-    >
-      <span className="sr-only">Toggle dark mode</span>
-      <span
-        className={`pointer-events-none inline-flex h-7 w-7 items-center justify-center rounded-full border shadow-sm transition-transform duration-200 ${
+      aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+      className={`relative inline-flex h-9 w-16 items-center rounded-none border transition-colors
+        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2
+        focus-visible:ring-offset-white dark:focus-visible:ring-offset-surface-900
+        ${
           isDark
-            ? "translate-x-8 border-slate-200 bg-white text-slate-900"
-            : "translate-x-1 border-slate-900 bg-slate-900 text-white"
-        }`}
+            ? "border-surface-800 bg-surface-900"
+            : "border-surface-200 bg-white"
+        }
+        ${className}`}
+    >
+      <span className="sr-only">Toggle theme</span>
+
+      <span
+        className={`pointer-events-none inline-flex h-7 w-7 items-center justify-center border transition-transform duration-200
+          ${
+            isDark
+              ? "translate-x-8 border-surface-200 bg-white text-surface-900"
+              : "translate-x-1 border-surface-900 bg-surface-900 text-white"
+          }`}
       >
         {isDark ? <MoonIcon /> : <SunIcon />}
       </span>

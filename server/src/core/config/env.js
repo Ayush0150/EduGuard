@@ -34,19 +34,23 @@ export const env = {
   nodeEnv: getNodeEnv(),
   isProduction: getNodeEnv() === "production",
   isDevelopment: getNodeEnv() === "development",
+  isTest: getNodeEnv() === "test",
   port: Number(process.env.PORT ?? 8080),
   mongoUri: requireEnv("MONGODB_URI"),
   jwtSecret: requireEnv("JWT_SECRET"),
   jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? "7d",
-  clientOrigin: process.env.CLIENT_ORIGIN ?? "http://localhost:5173",
+  clientOrigin: process.env.CLIENT_ORIGIN ?? "http://localhost:5174",
   superAdminEmail: (process.env.SUPER_ADMIN_EMAIL ?? "").trim().toLowerCase(),
   adminRecoveryEmail: (process.env.ADMIN_RECOVERY_EMAIL ?? "")
     .trim()
     .toLowerCase(),
   mail: {
     host: process.env.SMTP_HOST ?? "",
-    port: Number(process.env.SMTP_PORT ?? 465),
-    secure: String(process.env.SMTP_SECURE ?? "true") === "true",
+    port: Number(process.env.SMTP_PORT ?? 587),
+    secure:
+      process.env.SMTP_SECURE != null
+        ? String(process.env.SMTP_SECURE) === "true"
+        : Number(process.env.SMTP_PORT ?? 587) === 465,
     user: process.env.SMTP_USER ?? "",
     pass: process.env.SMTP_PASS ?? "",
     from:
@@ -56,3 +60,22 @@ export const env = {
         : "EduGuard <no-reply@eduguard.local>"),
   },
 };
+
+// Validate critical production settings
+if (env.isProduction) {
+  if (env.jwtSecret === "your-secret-key-change-in-production") {
+    throw new Error(
+      "SECURITY ERROR: JWT_SECRET must be changed in production! Generate a secure random string."
+    );
+  }
+  if (env.jwtSecret.length < 32) {
+    throw new Error(
+      "SECURITY ERROR: JWT_SECRET must be at least 32 characters long in production."
+    );
+  }
+  if (!env.superAdminEmail) {
+    process.stderr.write(
+      "WARNING: SUPER_ADMIN_EMAIL is not set. Admin access will not be restricted.\n"
+    );
+  }
+}

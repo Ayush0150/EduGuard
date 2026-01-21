@@ -1,19 +1,19 @@
 import { env } from "../config/env.js";
 
 /**
- * Production-grade structured logger
+ * =====================================================
+ * EduGuard Structured Logger
+ * =====================================================
  *
- * Features:
- * - JSON format in production, human-readable in development
- * - Configurable log levels via LOG_LEVEL env variable
- * - Silent by default (logs are structured but not printed to console)
- * - Specialized security event logging
- * - Can be piped to external monitoring services
- *
- * Usage:
- *   logger.error('Error message', { context: 'data' });
- *   logger.security.loginAttempt(true, { email, ip });
+ * ✔ Production-safe
+ * ✔ Cloud-log compatible
+ * ✔ Security audit friendly
+ * ✔ Zero dependency
  */
+
+/* -----------------------------------------------------
+   Log Levels
+----------------------------------------------------- */
 
 const LOG_LEVELS = {
   ERROR: 0,
@@ -22,49 +22,76 @@ const LOG_LEVELS = {
   DEBUG: 3,
 };
 
-const currentLogLevel =
-  LOG_LEVELS[process.env.LOG_LEVEL?.toUpperCase()] ??
+const CURRENT_LEVEL =
+  LOG_LEVELS[String(process.env.LOG_LEVEL || "").toUpperCase()] ??
   (env.isProduction ? LOG_LEVELS.INFO : LOG_LEVELS.DEBUG);
 
-function formatMessage(level, message, meta = {}) {
-  const timestamp = new Date().toISOString();
+/* -----------------------------------------------------
+   Utilities
+----------------------------------------------------- */
+
+function safeMeta(meta) {
+  return meta && typeof meta === "object" ? meta : {};
+}
+
+/* -----------------------------------------------------
+   Formatter
+----------------------------------------------------- */
+
+function format(level, message, meta = {}) {
+  const payload = {
+    timestamp: new Date().toISOString(),
+    level,
+    message,
+    ...safeMeta(meta),
+  };
 
   if (env.isProduction) {
-    return JSON.stringify({
-      timestamp,
-      level,
-      message,
-      ...meta,
-    });
+    return JSON.stringify(payload);
   }
 
-  // Development: human-readable format
-  const metaStr =
+  const extra =
     Object.keys(meta).length > 0 ? ` | ${JSON.stringify(meta)}` : "";
-  return `[${timestamp}] ${level.toUpperCase()}: ${message}${metaStr}`;
+
+  return `[${payload.timestamp}] ${level}: ${message}${extra}`;
 }
 
-function log(level, message, meta = {}) {
-  const levelValue = LOG_LEVELS[level.toUpperCase()];
-  if (levelValue > currentLogLevel) return;
+/* -----------------------------------------------------
+   Writer
+----------------------------------------------------- */
 
-  const formatted = formatMessage(level, message, meta);
+function write(level, message, meta = {}) {
+  const numericLevel = LOG_LEVELS[level];
+  if (numericLevel > CURRENT_LEVEL) return;
 
-  // Silent logging - no console output
-  // Logs are structured and can be piped to monitoring services
-  return formatted;
+  const output = format(level, message, meta);
+
+  if (level === "ERROR" || level === "WARN") {
+    process.stderr.write(`${output}\n`);
+  } else {
+    process.stdout.write(`${output}\n`);
+  }
+
+  return output;
 }
+
+/* -----------------------------------------------------
+   Public Logger
+----------------------------------------------------- */
 
 export const logger = {
-  error: (message, meta = {}) => log("ERROR", message, meta),
-  warn: (message, meta = {}) => log("WARN", message, meta),
-  info: (message, meta = {}) => log("INFO", message, meta),
-  debug: (message, meta = {}) => log("DEBUG", message, meta),
+  error: (message, meta) => write("ERROR", message, meta),
+  warn: (message, meta) => write("WARN", message, meta),
+  info: (message, meta) => write("INFO", message, meta),
+  debug: (message, meta) => write("DEBUG", message, meta),
 
-  // Security-specific logging
+  /* ============================
+     SECURITY AUDIT LOGS
+  ============================ */
+
   security: {
-    loginAttempt: (success, { email, ip, reason }) => {
-      log("INFO", success ? "Login successful" : "Login failed", {
+    loginAttempt(success, { email, ip, reason } = {}) {
+      write("INFO", success ? "Login successful" : "Login failed", {
         category: "security",
         event: "login_attempt",
         success,
@@ -74,28 +101,29 @@ export const logger = {
       });
     },
 
-    loginLocked: ({ email, ip, attempts }) => {
-      log("WARN", "Account locked due to too many failed attempts", {
+    loginLocked({ email, ip, attempts } = {}) {
+      write("WARN", "Account locked due to excessive login attempts", {
         category: "security",
-        event: "account_locked",
+        event: "login_locked",
         email,
         ip,
         attempts,
       });
     },
 
-    passwordReset: ({ email, success, step }) => {
-      log("INFO", `Password reset: ${step}`, {
+    passwordReset({ email, success, step, ...extra } = {}) {
+      write("INFO", `Password reset: ${step}`, {
         category: "security",
         event: "password_reset",
         email,
         success,
         step,
+        ...extra,
       });
     },
 
-    unauthorizedAccess: ({ ip, path, userId, reason }) => {
-      log("WARN", "Unauthorized access attempt", {
+    unauthorizedAccess({ ip, path, userId, reason } = {}) {
+      write("WARN", "Unauthorized access attempt", {
         category: "security",
         event: "unauthorized_access",
         ip,
@@ -105,8 +133,8 @@ export const logger = {
       });
     },
 
-    adminAction: ({ adminId, action, targetUserId, success }) => {
-      log("INFO", `Admin action: ${action}`, {
+    adminAction({ adminId, action, targetUserId, success } = {}) {
+      write("INFO", `Admin action: ${action}`, {
         category: "security",
         event: "admin_action",
         adminId,
@@ -117,10 +145,13 @@ export const logger = {
     },
   },
 
-  // Performance monitoring
+  /* ============================
+     PERFORMANCE LOGS
+  ============================ */
+
   perf: {
-    dbQuery: (operation, duration, collection) => {
-      log("DEBUG", `DB query: ${operation}`, {
+    dbQuery(operation, duration, collection) {
+      write("DEBUG", "Database query executed", {
         category: "performance",
         operation,
         duration,
@@ -128,8 +159,8 @@ export const logger = {
       });
     },
 
-    apiRequest: (method, path, duration, status) => {
-      log("DEBUG", `API request: ${method} ${path}`, {
+    apiRequest(method, path, duration, status) {
+      write("DEBUG", "API request completed", {
         category: "performance",
         method,
         path,

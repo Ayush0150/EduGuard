@@ -1,62 +1,60 @@
 import http from "../../../core/http";
 
-export async function login(payload) {
-  const res = await http.post("/api/v1/auth/login", payload);
+/* ---------------------------------------------------
+   Base paths
+--------------------------------------------------- */
+
+const AUTH_BASE = "/api/v1/auth";
+
+/* ---------------------------------------------------
+   Helpers
+--------------------------------------------------- */
+
+function authPath(isAdmin) {
+  return isAdmin ? `${AUTH_BASE}/admin` : AUTH_BASE;
+}
+
+/* ---------------------------------------------------
+   Auth
+--------------------------------------------------- */
+
+export async function login(payload, { admin = false } = {}) {
+  const res = await http.post(`${authPath(admin)}/login`, payload);
+
   return res.data.data;
 }
 
-export async function adminLogin(payload) {
-  const res = await http.post("/api/v1/auth/admin/login", payload);
-  return res.data.data;
-}
+/* ---------------------------------------------------
+   Forgot password - OTP
+--------------------------------------------------- */
 
-export async function requestResetOtp(email) {
-  const res = await http.post("/api/v1/auth/forgot-password/request-otp", {
-    email,
-  });
-  return res.data;
-}
-
-export async function requestAdminResetOtp(email) {
+export async function requestResetOtp(email, { admin = false } = {}) {
   const res = await http.post(
-    "/api/v1/auth/admin/forgot-password/request-otp",
-    {
-      email,
-    }
+    `${authPath(admin)}/forgot-password/request-otp`,
+    { email }
   );
+
   return res.data;
 }
 
-export async function verifyResetOtp({ email, otp }) {
-  const res = await http.post("/api/v1/auth/forgot-password/verify-otp", {
+export async function verifyResetOtp({ email, otp }, { admin = false } = {}) {
+  const res = await http.post(`${authPath(admin)}/forgot-password/verify-otp`, {
     email,
     otp,
   });
+
   return res.data.data;
 }
 
-export async function verifyAdminResetOtp({ email, otp }) {
-  const res = await http.post("/api/v1/auth/admin/forgot-password/verify-otp", {
-    email,
-    otp,
-  });
-  return res.data.data;
-}
-
-export async function resetPassword({ email, resetToken, newPassword }) {
-  const res = await http.post("/api/v1/auth/forgot-password/reset", {
+export async function resetPassword(
+  { email, resetToken, newPassword },
+  { admin = false } = {}
+) {
+  const res = await http.post(`${authPath(admin)}/forgot-password/reset`, {
     email,
     resetToken,
     newPassword,
   });
-  return res.data;
-}
 
-export async function resetAdminPassword({ email, resetToken, newPassword }) {
-  const res = await http.post("/api/v1/auth/admin/forgot-password/reset", {
-    email,
-    resetToken,
-    newPassword,
-  });
   return res.data;
 }

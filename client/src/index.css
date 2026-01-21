@@ -1,11 +1,26 @@
+/* =====================================================
+   EduGuard UI Foundation
+   -----------------------------------------------------
+   This is the ONLY file that imports Tailwind.
+===================================================== */
+
+/* ---------------------------------------------------
+   Fonts
+--------------------------------------------------- */
 @import "@fontsource/inter/400.css";
 @import "@fontsource/inter/500.css";
 @import "@fontsource/inter/600.css";
 
+/* ---------------------------------------------------
+   Tailwind
+--------------------------------------------------- */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* ---------------------------------------------------
+   Base Layer
+--------------------------------------------------- */
 @layer base {
   html,
   body,
@@ -21,7 +36,8 @@
 
   body {
     margin: 0;
-    @apply bg-slate-100 font-sans text-slate-900 dark:bg-slate-950 dark:text-slate-100;
+    @apply bg-surface-50 font-sans text-surface-900
+      dark:bg-surface-950 dark:text-surface-100;
   }
 
   * {
@@ -29,7 +45,10 @@
   }
 }
 
-/* ---------------- Animations ---------------- */
+/* ---------------------------------------------------
+   Animations
+--------------------------------------------------- */
+
 @keyframes slideDown {
   from {
     opacity: 0;
@@ -41,15 +60,58 @@
   }
 }
 
-/* ---------------- Chrome Autofill Fix ---------------- */
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.animate-slide-in-right {
+  animation: slideInRight 0.3s ease-out;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.2s ease-out;
+}
+
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* ---------------------------------------------------
+   Chrome Autofill Fix
+--------------------------------------------------- */
+
 /* Light mode */
 input:-webkit-autofill,
-input:-webkit-autofill:hover,
-input:-webkit-autofill:focus,
 textarea:-webkit-autofill,
 select:-webkit-autofill {
-  -webkit-box-shadow: 0 0 0px 1000px #f8fafc inset !important; /* slate-100 */
-  -webkit-text-fill-color: #0f172a !important; /* slate-900 */
+  -webkit-box-shadow: 0 0 0px 1000px #f8fafc inset !important;
+  -webkit-text-fill-color: #0f172a !important;
   caret-color: #0f172a;
   transition: background-color 9999s ease-in-out 0s;
 }
@@ -58,7 +120,7 @@ select:-webkit-autofill {
 .dark input:-webkit-autofill,
 .dark textarea:-webkit-autofill,
 .dark select:-webkit-autofill {
-  -webkit-box-shadow: 0 0 0px 1000px #020617 inset !important; /* slate-950 */
+  -webkit-box-shadow: 0 0 0px 1000px #020617 inset !important;
   -webkit-text-fill-color: #f8fafc !important;
   caret-color: #f8fafc;
 }

@@ -1,42 +1,63 @@
 /**
- * Client-side validation utilities for forms
- * Provides consistent, user-friendly validation across the application
+ * Client-side Validation Utilities
+ * --------------------------------
+ * Centralized reusable validation helpers for EduGuard.
  *
- * All validation functions return: { valid: boolean, error?: string, value?: any }
- * - Use the 'valid' property to check if validation passed
- * - Use 'error' property for user-friendly error messages
- * - Use 'value' property for sanitized/normalized values
+ * ⚠️ Frontend validation is for USER EXPERIENCE only.
+ * Backend must ALWAYS re-validate all data.
+ *
+ * Each validator returns:
+ * {
+ *   valid: boolean,
+ *   error?: string,
+ *   value?: any
+ * }
  */
 
+/* =====================================================
+   Constants
+===================================================== */
+
+const MAX_INPUT_LENGTH = 1000;
+const MAX_EMAIL_LENGTH = 255;
+const MAX_PASSWORD_LENGTH = 128;
+
+export const ROLES = [
+  "USER",
+  "SECURITY",
+  "MAINTENANCE",
+  "PRINCIPAL",
+  "ADMIN",
+  "SUPER_ADMIN",
+];
+
+/* =====================================================
+   Sanitization
+===================================================== */
+
 /**
- * Sanitize user input to prevent XSS attacks
- * @param {any} value - Value to sanitize
- * @returns {any} Sanitized value (or original if not string)
+ * Basic client-side sanitization (UX-level only).
+ * Prevents accidental markup input and limits length.
  */
 export function sanitizeInput(value) {
   if (typeof value !== "string") return value;
 
   return value
     .trim()
-    .replace(/[<>]/g, "") // Remove angle brackets
-    .substring(0, 1000); // Limit length
+    .replace(/[<>]/g, "")
+    .slice(0, MAX_INPUT_LENGTH);
 }
 
-/**
- * Validate email format and return normalized value
- * @param {string} email - Email address to validate
- * @returns {{valid: boolean, error?: string, value?: string}}
- */
+/* =====================================================
+   Email
+===================================================== */
+
 export function validateEmail(email) {
-  if (!email || typeof email !== "string") {
+  if (typeof email !== "string" || !email.trim()) {
     return { valid: false, error: "Please enter your email address" };
   }
 
   const sanitized = sanitizeInput(email);
-
-  if (!sanitized) {
-    return { valid: false, error: "Please enter your email address" };
-  }
 
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -47,29 +68,29 @@ export function validateEmail(email) {
     };
   }
 
-  if (sanitized.length > 255) {
+  if (sanitized.length > MAX_EMAIL_LENGTH) {
     return {
       valid: false,
       error: "Email address is too long (maximum 255 characters)",
     };
   }
 
-  return { valid: true, value: sanitized.toLowerCase() };
+  return {
+    valid: true,
+    value: sanitized.toLowerCase(),
+  };
 }
 
-/**
- * Validate username
- */
+/* =====================================================
+   Username
+===================================================== */
+
 export function validateUsername(username) {
-  if (!username || typeof username !== "string") {
+  if (typeof username !== "string" || !username.trim()) {
     return { valid: false, error: "Please enter your username" };
   }
 
   const sanitized = sanitizeInput(username);
-
-  if (!sanitized) {
-    return { valid: false, error: "Please enter your username" };
-  }
 
   if (sanitized.length < 3) {
     return {
@@ -79,28 +100,34 @@ export function validateUsername(username) {
   }
 
   if (sanitized.length > 50) {
-    return { valid: false, error: "Username must be less than 50 characters" };
+    return {
+      valid: false,
+      error: "Username must be less than 50 characters",
+    };
   }
 
-  // Only allow alphanumeric, underscore, and hyphen
   const usernameRegex = /^[a-zA-Z0-9_-]+$/;
 
   if (!usernameRegex.test(sanitized)) {
     return {
       valid: false,
       error:
-        "Username can only contain letters, numbers, underscores (_), and hyphens (-)",
+        "Username can only contain letters, numbers, underscores (_) and hyphens (-)",
     };
   }
 
-  return { valid: true, value: sanitized };
+  return {
+    valid: true,
+    value: sanitized,
+  };
 }
 
-/**
- * Validate password strength
- */
+/* =====================================================
+   Password
+===================================================== */
+
 export function validatePassword(password) {
-  if (!password || typeof password !== "string") {
+  if (typeof password !== "string" || !password) {
     return { valid: false, error: "Please enter your password" };
   }
 
@@ -111,88 +138,123 @@ export function validatePassword(password) {
     };
   }
 
-  if (password.length > 128) {
+  if (password.length > MAX_PASSWORD_LENGTH) {
     return {
       valid: false,
       error: "Password is too long (maximum 128 characters)",
     };
   }
 
-  const checks = {
-    lowercase: /[a-z]/.test(password),
-    uppercase: /[A-Z]/.test(password),
-    number: /\d/.test(password),
-    symbol: /[^A-Za-z0-9]/.test(password),
+  const rules = {
+    lowercase: /[a-z]/,
+    uppercase: /[A-Z]/,
+    number: /\d/,
+    symbol: /[^A-Za-z0-9]/,
   };
 
-  const errors = [];
+  const missing = [];
 
-  if (!checks.lowercase) errors.push("one lowercase letter (a-z)");
-  if (!checks.uppercase) errors.push("one uppercase letter (A-Z)");
-  if (!checks.number) errors.push("one number (0-9)");
-  if (!checks.symbol) errors.push("one special character (!@#$%^&*)");
+  if (!rules.lowercase.test(password)) missing.push("one lowercase letter");
+  if (!rules.uppercase.test(password)) missing.push("one uppercase letter");
+  if (!rules.number.test(password)) missing.push("one number");
+  if (!rules.symbol.test(password)) missing.push("one special character");
 
-  if (errors.length > 0) {
+  if (missing.length) {
     return {
       valid: false,
-      error: `Password must include at least: ${errors.join(", ")}`,
+      error: `Password must include at least: ${missing.join(", ")}`,
     };
   }
 
-  return { valid: true, value: password };
+  return {
+    valid: true,
+    value: password,
+  };
 }
 
-/**
- * Validate role selection
- */
-export function validateRole(role) {
-  const validRoles = [
-    "USER",
-    "SECURITY",
-    "MAINTENANCE",
-    "PRINCIPAL",
-    "ADMIN",
-    "SUPER_ADMIN",
-  ];
+/* =====================================================
+   Role
+===================================================== */
 
+export function validateRole(role) {
   if (!role) {
     return { valid: false, error: "Please select a role" };
   }
 
-  if (!validRoles.includes(role)) {
-    return { valid: false, error: "Please select a valid role from the list" };
+  if (!ROLES.includes(role)) {
+    return { valid: false, error: "Please select a valid role" };
   }
 
-  return { valid: true, value: role };
+  return {
+    valid: true,
+    value: role,
+  };
 }
 
-/**
- * Validate OTP (6 digits)
- */
+/* =====================================================
+   OTP
+===================================================== */
+
 export function validateOTP(otp) {
-  if (!otp || typeof otp !== "string") {
+  if (typeof otp !== "string") {
     return { valid: false, error: "Please enter the 6-digit OTP code" };
   }
 
   const sanitized = otp.trim();
 
   if (!/^\d{6}$/.test(sanitized)) {
-    return { valid: false, error: "OTP must be exactly 6 digits" };
+    return {
+      valid: false,
+      error: "OTP must be exactly 6 digits",
+    };
   }
 
-  return { valid: true, value: sanitized };
+  return {
+    valid: true,
+    value: sanitized,
+  };
 }
 
+/* =====================================================
+   Identifier (Email OR Username)
+===================================================== */
+
+export function validateIdentifier(identifier) {
+  if (typeof identifier !== "string" || !identifier.trim()) {
+    return {
+      valid: false,
+      error: "Please enter your email or username",
+    };
+  }
+
+  const sanitized = sanitizeInput(identifier);
+
+  return sanitized.includes("@")
+    ? validateEmail(sanitized)
+    : validateUsername(sanitized);
+}
+
+/* =====================================================
+   Form-level Validation
+===================================================== */
+
 /**
- * Validate form data
- * Returns { valid: boolean, errors: object, values: object }
+ * Validates a full form using field definitions.
+ *
+ * Example:
+ * validateForm({
+ *   email: { value: email, validator: validateEmail },
+ *   password: { value: password, validator: validatePassword }
+ * })
  */
 export function validateForm(fields) {
   const errors = {};
   const values = {};
-  let isValid = true;
+  let valid = true;
 
-  Object.entries(fields).forEach(([key, { value, validator }]) => {
+  Object.entries(fields).forEach(([key, config]) => {
+    const { value, validator } = config;
+
     if (!validator) {
       values[key] = sanitizeInput(value);
       return;
@@ -202,34 +264,11 @@ export function validateForm(fields) {
 
     if (!result.valid) {
       errors[key] = result.error;
-      isValid = false;
+      valid = false;
     } else {
       values[key] = result.value;
     }
   });
 
-  return { valid: isValid, errors, values };
-}
-
-/**
- * Validate identifier (email or username)
- */
-export function validateIdentifier(identifier) {
-  if (!identifier || typeof identifier !== "string") {
-    return { valid: false, error: "Please enter your email or username" };
-  }
-
-  const sanitized = sanitizeInput(identifier);
-
-  if (!sanitized) {
-    return { valid: false, error: "Please enter your email or username" };
-  }
-
-  // Check if it looks like an email
-  if (sanitized.includes("@")) {
-    return validateEmail(sanitized);
-  }
-
-  // Otherwise validate as username
-  return validateUsername(sanitized);
+  return { valid, errors, values };
 }

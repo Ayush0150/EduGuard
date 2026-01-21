@@ -1,51 +1,88 @@
 import { z } from "zod";
 
 /**
- * Strong password schema with comprehensive validation
+ * =====================================================
+ * EduGuard Authentication Validation Schemas
+ * =====================================================
+ *
+ * All schemas defined here are used for:
+ * - request body validation
+ * - API input protection
+ * - early error detection
+ *
+ * ⚠️ Frontend validation improves UX only.
+ * Backend validation is the source of truth.
+ */
+
+/* =====================================================
+   Constants
+===================================================== */
+
+const MAX_EMAIL_LENGTH = 255;
+const MAX_PASSWORD_LENGTH = 128;
+const MIN_PASSWORD_LENGTH = 8;
+const OTP_LENGTH = 6;
+
+/* =====================================================
+   Shared Validators
+===================================================== */
+
+/**
+ * Strong password validator
+ *
+ * Enforces:
+ * - minimum length
+ * - uppercase & lowercase
+ * - number
+ * - special character
+ * - protection against common weak patterns
  */
 export const strongPasswordSchema = z
-  .string({ required_error: "Password is required" })
+  .string({
+    required_error: "Password is required",
+    invalid_type_error: "Password must be a string",
+  })
   .trim()
-  .min(8, "Password must be at least 8 characters")
-  .max(128, "Password must not exceed 128 characters")
+  .min(MIN_PASSWORD_LENGTH, `Password must be at least ${MIN_PASSWORD_LENGTH} characters`)
+  .max(MAX_PASSWORD_LENGTH, `Password must not exceed ${MAX_PASSWORD_LENGTH} characters`)
   .superRefine((password, ctx) => {
-    if (!/[a-z]/.test(password)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+    const rules = [
+      {
+        test: /[a-z]/,
         message: "Password must include at least one lowercase letter",
-      });
-    }
-
-    if (!/[A-Z]/.test(password)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+      },
+      {
+        test: /[A-Z]/,
         message: "Password must include at least one uppercase letter",
-      });
-    }
-
-    if (!/\d/.test(password)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+      },
+      {
+        test: /\d/,
         message: "Password must include at least one number",
-      });
-    }
-
-    if (!/[^A-Za-z0-9]/.test(password)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+      },
+      {
+        test: /[^A-Za-z0-9]/,
         message: "Password must include at least one special character",
-      });
-    }
-
-    // Check for common patterns
-    const commonPatterns = [
-      /^(.)\1+$/, // All same character
-      /^12345678/, // Sequential numbers
-      /^password/i, // Contains "password"
-      /^qwerty/i, // Contains "qwerty"
+      },
     ];
 
-    if (commonPatterns.some((pattern) => pattern.test(password))) {
+    rules.forEach(({ test, message }) => {
+      if (!test.test(password)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message,
+        });
+      }
+    });
+
+    // Prevent extremely common passwords
+    const weakPatterns = [
+      /^(.)\1+$/,        // same character repeated
+      /^123456/i,        // numeric sequence
+      /^password/i,      // "password"
+      /^qwerty/i,        // keyboard pattern
+    ];
+
+    if (weakPatterns.some((pattern) => pattern.test(password))) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: "Password is too common. Please choose a stronger password",
@@ -53,70 +90,91 @@ export const strongPasswordSchema = z
     }
   });
 
-/**
- * Login schema with strict validation
- */
+/* =====================================================
+   Login Schema
+===================================================== */
+
 export const loginSchema = z.object({
   identifier: z
-    .string({ required_error: "Email or username is required" })
+    .string({
+      required_error: "Email or username is required",
+    })
     .trim()
     .min(1, "Email or username is required")
-    .max(255, "Email or username is too long"),
+    .max(MAX_EMAIL_LENGTH, "Email or username is too long"),
 
   password: z
-    .string({ required_error: "Password is required" })
+    .string({
+      required_error: "Password is required",
+    })
     .trim()
     .min(1, "Password is required")
-    .max(128, "Password is too long"),
+    .max(MAX_PASSWORD_LENGTH, "Password is too long"),
 
   remember: z.boolean().optional().default(false),
 });
 
-/**
- * Request OTP schema with email validation
- */
+/* =====================================================
+   Request OTP Schema
+===================================================== */
+
 export const requestOtpSchema = z.object({
   email: z
-    .string({ required_error: "Email is required" })
+    .string({
+      required_error: "Email is required",
+    })
     .trim()
     .email("Please enter a valid email address")
-    .max(255, "Email is too long")
-    .transform((val) => val.toLowerCase()),
+    .max(MAX_EMAIL_LENGTH, "Email is too long")
+    .transform((value) => value.toLowerCase()),
 });
 
-/**
- * Verify OTP schema with strict 6-digit validation
- */
+/* =====================================================
+   Verify OTP Schema
+===================================================== */
+
 export const verifyOtpSchema = z.object({
   email: z
-    .string({ required_error: "Email is required" })
+    .string({
+      required_error: "Email is required",
+    })
     .trim()
     .email("Please enter a valid email address")
-    .max(255, "Email is too long")
-    .transform((val) => val.toLowerCase()),
+    .max(MAX_EMAIL_LENGTH, "Email is too long")
+    .transform((value) => value.toLowerCase()),
 
   otp: z
-    .string({ required_error: "OTP is required" })
+    .string({
+      required_error: "OTP is required",
+    })
     .trim()
-    .regex(/^\d{6}$/, "OTP must be exactly 6 digits"),
+    .regex(
+      new RegExp(`^\\d{${OTP_LENGTH}}$`),
+      `OTP must be exactly ${OTP_LENGTH} digits`
+    ),
 });
 
-/**
- * Reset password schema with token and password validation
- */
+/* =====================================================
+   Reset Password Schema
+===================================================== */
+
 export const resetPasswordSchema = z.object({
   email: z
-    .string({ required_error: "Email is required" })
+    .string({
+      required_error: "Email is required",
+    })
     .trim()
     .email("Please enter a valid email address")
-    .max(255, "Email is too long")
-    .transform((val) => val.toLowerCase()),
+    .max(MAX_EMAIL_LENGTH, "Email is too long")
+    .transform((value) => value.toLowerCase()),
 
   resetToken: z
-    .string({ required_error: "Reset token is required" })
+    .string({
+      required_error: "Reset token is required",
+    })
     .trim()
-    .min(32, "Invalid reset token")
-    .max(128, "Invalid reset token"),
+    .min(32, "Invalid or expired reset token")
+    .max(128, "Invalid or expired reset token"),
 
   newPassword: strongPasswordSchema,
 });
