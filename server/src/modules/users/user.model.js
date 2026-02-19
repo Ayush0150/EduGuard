@@ -76,6 +76,7 @@ const userSchema = new mongoose.Schema(
     resetOtpExpiresAt: {
       type: Date,
       default: null,
+      select: false, // protect expiry metadata
     },
 
     resetTokenHash: {
@@ -87,6 +88,23 @@ const userSchema = new mongoose.Schema(
     resetTokenExpiresAt: {
       type: Date,
       default: null,
+      select: false, // protect expiry metadata
+    },
+
+    /* ---------------------------------------------------
+       Admin Login OTP (MFA)
+    --------------------------------------------------- */
+
+    adminLoginOtpHash: {
+      type: String,
+      default: null,
+      select: false,
+    },
+
+    adminLoginOtpExpiresAt: {
+      type: Date,
+      default: null,
+      select: false, // 🔥 REQUIRED
     },
   },
   {

@@ -26,15 +26,45 @@ let cachedTransporter = null;
 let transporterVerified = false;
 
 /* -----------------------------------------------------
+   Development Fallback Transporter
+----------------------------------------------------- */
+
+function createDevTransporter() {
+  logger.warn("Mailer: SMTP not configured. Using dev mail logger.", {
+    category: "mailer",
+  });
+
+  return {
+    async verify() {
+      return true;
+    },
+    async sendMail({ to, subject, text, html }) {
+      logger.info("Mailer: DEV email captured", {
+        category: "mailer",
+        to,
+        subject,
+        preview: text?.slice?.(0, 120) || html?.slice?.(0, 120),
+      });
+
+      return { messageId: `dev-${Date.now()}` };
+    },
+  };
+}
+
+/* -----------------------------------------------------
    Normalizers
 ----------------------------------------------------- */
 
 function normalizeHost(host) {
-  return String(host ?? "").trim().toLowerCase();
+  return String(host ?? "")
+    .trim()
+    .toLowerCase();
 }
 
 function normalizeEmail(email) {
-  return String(email ?? "").trim().toLowerCase();
+  return String(email ?? "")
+    .trim()
+    .toLowerCase();
 }
 
 function isGmailAccount({ host, user }) {
@@ -56,9 +86,11 @@ function createTransporterOrThrow() {
   const { host, port, secure, user, pass, from } = env.mail;
 
   if (!user || !pass) {
-    const err = new Error(
-      "SMTP not configured. Set SMTP_USER and SMTP_PASS."
-    );
+    if (env.isDevelopment) {
+      return createDevTransporter();
+    }
+
+    const err = new Error("SMTP not configured. Set SMTP_USER and SMTP_PASS.");
     err.code = "SMTP_NOT_CONFIGURED";
     throw err;
   }
@@ -79,6 +111,10 @@ function createTransporterOrThrow() {
   }
 
   if (!normalizedHost) {
+    if (env.isDevelopment) {
+      return createDevTransporter();
+    }
+
     const err = new Error("SMTP_HOST is missing.");
     err.code = "SMTP_NOT_CONFIGURED";
     throw err;
@@ -115,10 +151,25 @@ async function getTransporter() {
   }
 
   if (!transporterVerified) {
-    await cachedTransporter.verify();
-    transporterVerified = true;
+    try {
+      await cachedTransporter.verify();
+      transporterVerified = true;
 
-    logger.info("Mailer: SMTP connection verified");
+      logger.info("Mailer: SMTP connection verified");
+    } catch (error) {
+      logger.error("Mailer: SMTP verification failed", {
+        category: "mailer",
+        code: error?.code,
+        message: error?.message,
+      });
+
+      const err = new Error(
+        "Email service is unavailable. Please check SMTP configuration."
+      );
+      err.status = 502;
+      err.code = error?.code || "SMTP_VERIFY_FAILED";
+      throw err;
+    }
   }
 
   return cachedTransporter;
@@ -129,7 +180,18 @@ async function getTransporter() {
 ----------------------------------------------------- */
 
 export async function sendMail({ to, subject, text, html }) {
-  const transporter = await getTransporter();
+  let transporter;
+  try {
+    transporter = await getTransporter();
+  } catch (error) {
+    const err = new Error(
+      error?.message ||
+        "Email service is unavailable. Please check SMTP configuration."
+    );
+    err.status = error?.status || 502;
+    err.code = error?.code || "SMTP_NOT_READY";
+    throw err;
+  }
 
   try {
     const info = await transporter.sendMail({
@@ -159,6 +221,11 @@ export async function sendMail({ to, subject, text, html }) {
       command: error.command,
     });
 
-    throw error;
+    const err = new Error(
+      "Email delivery failed. Please check SMTP credentials and connectivity."
+    );
+    err.status = 502;
+    err.code = error?.code || "SMTP_SEND_FAILED";
+    throw err;
   }
 }

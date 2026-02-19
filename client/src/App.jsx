@@ -22,6 +22,10 @@ const AdminLoginPage = lazy(
   () => import("./features/auth/pages/AdminLoginPage")
 );
 
+const AdminLoginOtpPage = lazy(
+  () => import("./features/auth/pages/AdminLoginOtpPage")
+);
+
 const StudentLoginPage = lazy(
   () => import("./features/auth/pages/StudentLoginPage")
 );
@@ -108,6 +112,7 @@ export default function App() {
         {/* Public routes */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/login/admin" element={<AdminLoginPage />} />
+        <Route path="/admin/login/verify-otp" element={<AdminLoginOtpPage />} />
         <Route path="/login/student" element={<StudentLoginPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/admin/forgot-password" element={<ForgotPasswordPage />} />

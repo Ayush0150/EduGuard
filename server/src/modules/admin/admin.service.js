@@ -1,31 +1,44 @@
+import { userCache } from "../../core/cache/userCache.js";
 import { hashPassword } from "../../core/security/password.js";
+import {
+  isForbiddenAdminRole,
+  normalizeEmail,
+  normalizeUsername,
+} from "../../core/utils/helpers.js";
 import { logger } from "../../core/utils/logger.js";
 import { User } from "../users/user.model.js";
+
+/**
+ * =====================================================
+ * Admin User Management Service
+ * =====================================================
+ *
+ * Responsibilities:
+ * - CRUD operations for user accounts
+ * - Role and status management
+ * - Audit logging
+ *
+ * ⚠️ No HTTP logic here.
+ * Controllers handle request/response.
+ */
 
 /* =====================================================
    Constants
 ===================================================== */
 
-const SAFE_USER_SELECT =
-  "-passwordHash -resetOtpHash -resetOtpExpiresAt -resetTokenHash -resetTokenExpiresAt";
-
-const FORBIDDEN_ADMIN_ROLES = new Set(["ADMIN", "SUPER_ADMIN"]);
+const SAFE_USER_FIELDS = [
+  "-passwordHash",
+  "-resetOtpHash",
+  "-resetOtpExpiresAt",
+  "-resetTokenHash",
+  "-resetTokenExpiresAt",
+  "-adminLoginOtpHash",
+  "-adminLoginOtpExpiresAt",
+];
 
 /* =====================================================
    Helpers
 ===================================================== */
-
-function isForbiddenAdminRole(role) {
-  return role && FORBIDDEN_ADMIN_ROLES.has(String(role));
-}
-
-function normalizeEmail(email) {
-  return String(email ?? "").trim().toLowerCase();
-}
-
-function normalizeUsername(username) {
-  return String(username ?? "").trim();
-}
 
 function mapUser(user) {
   if (!user) return null;
@@ -61,10 +74,7 @@ export async function createUser({
   const normalizedUsername = normalizeUsername(username);
 
   const existing = await User.findOne({
-    $or: [
-      { email: normalizedEmail },
-      { username: normalizedUsername },
-    ],
+    $or: [{ email: normalizedEmail }, { username: normalizedUsername }],
   }).lean();
 
   if (existing) {
@@ -107,7 +117,7 @@ export async function createUser({
 
 export async function getAllUsers() {
   const users = await User.find()
-    .select(SAFE_USER_SELECT)
+    .select(SAFE_USER_FIELDS)
     .sort({ createdAt: -1 })
     .limit(1000)
     .lean();
@@ -123,9 +133,7 @@ export async function getAllUsers() {
 ===================================================== */
 
 export async function getUserById(id) {
-  const user = await User.findById(id)
-    .select(SAFE_USER_SELECT)
-    .lean();
+  const user = await User.findById(id).select(SAFE_USER_FIELDS).lean();
 
   if (!user) {
     return {
@@ -157,9 +165,7 @@ export async function updateUser(id, updates) {
   }
 
   const nextEmail =
-    updates.email !== undefined
-      ? normalizeEmail(updates.email)
-      : undefined;
+    updates.email !== undefined ? normalizeEmail(updates.email) : undefined;
 
   const nextUsername =
     updates.username !== undefined
@@ -208,6 +214,9 @@ export async function updateUser(id, updates) {
 
   await user.save();
 
+  // Invalidate user cache after update
+  userCache.invalidate(user._id.toString());
+
   logger.info("User updated", {
     userId: user._id.toString(),
     updatedBy: "admin",
@@ -242,6 +251,9 @@ export async function deleteUser(id) {
 
   await User.deleteOne({ _id: user._id });
 
+  // Invalidate user cache
+  userCache.invalidate(user._id.toString());
+
   logger.warn("User deleted", {
     userId: user._id.toString(),
     email: user.email,
@@ -267,6 +279,9 @@ export async function toggleUserStatus(id) {
 
   user.isActive = !user.isActive;
   await user.save();
+
+  // Invalidate user cache after status change
+  userCache.invalidate(user._id.toString());
 
   logger.info("User status changed", {
     userId: user._id.toString(),

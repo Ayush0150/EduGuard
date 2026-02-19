@@ -2,10 +2,12 @@ import compression from "compression";
 import cors from "cors";
 import express from "express";
 import helmet from "helmet";
+import mongoose from "mongoose";
 
 import { env } from "./core/config/env.js";
 import { errorHandler } from "./core/middlewares/errorHandler.js";
 import { notFound } from "./core/middlewares/notFound.js";
+import { requestIdMiddleware } from "./core/middlewares/requestId.js";
 import { sanitizeInput } from "./core/middlewares/sanitize.js";
 import { logger } from "./core/utils/logger.js";
 
@@ -18,6 +20,7 @@ import { authRouter } from "./modules/auth/auth.routes.js";
  * Creates and configures the EduGuard API server.
  *
  * Lifecycle:
+ * - Request ID tracking
  * - Security
  * - Performance
  * - Network
@@ -38,6 +41,12 @@ export function createApp() {
 
   app.disable("x-powered-by");
   app.set("trust proxy", 1);
+
+  /* =====================================================
+     Request ID Tracking (first middleware)
+  ===================================================== */
+
+  app.use(requestIdMiddleware);
 
   /* =====================================================
      Security Middleware
@@ -137,17 +146,47 @@ export function createApp() {
   }
 
   /* =====================================================
-     Health Check
+     Health Check (enhanced with database connectivity)
   ===================================================== */
 
-  app.get("/health", (req, res) => {
-    res.status(200).json({
+  app.get("/health", async (req, res) => {
+    const health = {
       status: "ok",
       service: "EduGuard API",
       environment: env.nodeEnv,
-      uptime: process.uptime(),
+      uptime: Math.floor(process.uptime()),
       timestamp: new Date().toISOString(),
-    });
+      database: {
+        status: "unknown",
+        connected: false,
+      },
+    };
+
+    try {
+      // Check MongoDB connection
+      const dbState = mongoose.connection.readyState;
+      health.database.connected = dbState === 1;
+      health.database.status =
+        dbState === 1
+          ? "connected"
+          : dbState === 2
+            ? "connecting"
+            : dbState === 0
+              ? "disconnected"
+              : "unknown";
+
+      // If disconnected, return 503
+      if (!health.database.connected) {
+        health.status = "degraded";
+        return res.status(503).json(health);
+      }
+
+      return res.status(200).json(health);
+    } catch (error) {
+      health.status = "error";
+      health.error = error.message;
+      return res.status(503).json(health);
+    }
   });
 
   /* =====================================================
@@ -166,4 +205,3 @@ export function createApp() {
 
   return app;
 }
-

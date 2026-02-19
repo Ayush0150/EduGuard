@@ -64,13 +64,7 @@ export function AuthLayout({
               </header>
               <main className="space-y-6">{children}</main>
             </div>
-            {/* Footer */}
-            <footer className="mt-8 text-center lg:text-left">
-              <p className="text-xs text-surface-400 dark:text-surface-500">
-                &copy; {new Date().getFullYear()} EduGuard Security. All rights
-                reserved.
-              </p>
-            </footer>
+            {/* Footer intentionally left blank */}
           </div>
           {/* RIGHT — IMAGE (50%) */}
           {backgroundImage && (

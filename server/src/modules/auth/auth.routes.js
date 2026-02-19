@@ -4,29 +4,33 @@ import { requireAuth } from "../../core/middlewares/auth.js";
 import {
   authRateLimiter,
   loginRateLimiter,
+  otpRateLimiter,
+  passwordResetRateLimiter,
 } from "../../core/middlewares/rateLimit.js";
 import { validateBody } from "../../core/middlewares/validate.js";
 
 import {
   getMe,
-  postLogin,
-  postLogout,
-
   postAdminLogin,
   postAdminRequestOtp,
-  postAdminVerifyOtp,
+  postAdminResendLoginOtp,
   postAdminResetPassword,
-
+  postAdminVerifyLoginOtp,
+  postAdminVerifyOtp,
+  postLogin,
+  postLogout,
   postRequestOtp,
-  postVerifyOtp,
   postResetPassword,
+  postVerifyOtp,
 } from "./auth.controller.js";
 
 import {
+  adminLoginVerifyOtpSchema,
   loginSchema,
   requestOtpSchema,
-  verifyOtpSchema,
+  resendAdminOtpSchema,
   resetPasswordSchema,
+  verifyOtpSchema,
 } from "./auth.validation.js";
 
 /**
@@ -62,10 +66,7 @@ authRouter.post(
   postLogin
 );
 
-authRouter.post(
-  "/logout",
-  postLogout
-);
+authRouter.post("/logout", postLogout);
 
 /* =====================================================
    Admin Authentication
@@ -78,24 +79,44 @@ authRouter.post(
   postAdminLogin
 );
 
+authRouter.post(
+  "/admin/login/verify-otp",
+  loginRateLimiter,
+  otpRateLimiter,
+  validateBody(adminLoginVerifyOtpSchema),
+  postAdminVerifyLoginOtp
+);
+
+authRouter.post(
+  "/admin/login/resend-otp",
+  loginRateLimiter,
+  otpRateLimiter,
+  validateBody(resendAdminOtpSchema),
+  postAdminResendLoginOtp
+);
+
 /* =====================================================
    Admin Password Recovery (Strict)
 ===================================================== */
 
 authRouter.post(
   "/admin/forgot-password/request-otp",
+  passwordResetRateLimiter,
+  otpRateLimiter,
   validateBody(requestOtpSchema),
   postAdminRequestOtp
 );
 
 authRouter.post(
   "/admin/forgot-password/verify-otp",
+  otpRateLimiter,
   validateBody(verifyOtpSchema),
   postAdminVerifyOtp
 );
 
 authRouter.post(
   "/admin/forgot-password/reset",
+  passwordResetRateLimiter,
   validateBody(resetPasswordSchema),
   postAdminResetPassword
 );
@@ -106,18 +127,22 @@ authRouter.post(
 
 authRouter.post(
   "/forgot-password/request-otp",
+  passwordResetRateLimiter,
+  otpRateLimiter,
   validateBody(requestOtpSchema),
   postRequestOtp
 );
 
 authRouter.post(
   "/forgot-password/verify-otp",
+  otpRateLimiter,
   validateBody(verifyOtpSchema),
   postVerifyOtp
 );
 
 authRouter.post(
   "/forgot-password/reset",
+  passwordResetRateLimiter,
   validateBody(resetPasswordSchema),
   postResetPassword
 );
@@ -126,8 +151,4 @@ authRouter.post(
    Protected Routes
 ===================================================== */
 
-authRouter.get(
-  "/me",
-  requireAuth,
-  getMe
-);
+authRouter.get("/me", requireAuth, getMe);

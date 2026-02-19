@@ -183,7 +183,7 @@ export default function StudentLoginPage() {
 
           <Link
             to="/forgot-password"
-            className="text-sm font-medium text-brand-600 hover:underline underline-offset-4 dark:text-brand-400"
+            className="text-sm font-medium text-brand-600 transition-colors hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300"
           >
             Forgot password?
           </Link>
@@ -198,7 +198,7 @@ export default function StudentLoginPage() {
         <div className="pt-4 text-center">
           <Link
             to="/login"
-            className="text-sm font-medium text-brand-600 hover:underline underline-offset-4"
+            className="text-sm font-medium text-brand-600 transition-colors hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300"
           >
             Back to sign in
           </Link>

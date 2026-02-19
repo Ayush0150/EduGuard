@@ -29,11 +29,14 @@ export async function connectMongo(mongoUri) {
 
   // Production-optimized connection options
   const options = {
-    maxPoolSize: 10, // Maximum number of connections in pool
-    minPoolSize: 2, // Minimum number of connections
+    maxPoolSize: 20, // Increased for better concurrency (was 10)
+    minPoolSize: 5, // Increased min pool (was 2)
+    maxIdleTimeMS: 30000, // Close idle connections after 30s
     socketTimeoutMS: 45000,
     serverSelectionTimeoutMS: 5000,
     heartbeatFrequencyMS: 10000,
+    compressors: ["zlib"], // Enable compression for large documents
+    zlibCompressionLevel: 6, // Balanced compression
   };
 
   try {
@@ -41,6 +44,7 @@ export async function connectMongo(mongoUri) {
     logger.info("MongoDB connected successfully", {
       host: mongoose.connection.host,
       name: mongoose.connection.name,
+      poolSize: `${options.minPoolSize}-${options.maxPoolSize}`,
     });
 
     await dropDangerousUserTtlIndexIfPresent();

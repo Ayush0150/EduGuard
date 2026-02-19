@@ -7,7 +7,7 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 
-import adminImg from "../../../assets/admin-img.avif";
+import adminImg from "../../../assets/admin-img.png";
 import collegeImg from "../../../assets/college-img.png";
 
 import { toast } from "../../../core/utils/toastEmitter";
@@ -25,7 +25,7 @@ export default function ResetPasswordPage() {
   const isAdmin = location.pathname.includes("/admin");
   const backgroundImage = isAdmin ? adminImg : collegeImg;
 
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [resetToken, setResetToken] = useState("");
 
   const [newPassword, setNewPassword] = useState("");
@@ -39,11 +39,11 @@ export default function ResetPasswordPage() {
   --------------------------------------------------- */
 
   useEffect(() => {
-    const stateEmail = location.state?.email;
+    const stateIdentifier = location.state?.identifier;
     const stateToken = location.state?.resetToken;
 
-    if (stateEmail && stateToken) {
-      setEmail(stateEmail);
+    if (stateIdentifier && stateToken) {
+      setIdentifier(stateIdentifier);
       setResetToken(stateToken);
       return;
     }
@@ -61,7 +61,7 @@ export default function ResetPasswordPage() {
   async function handleResetPassword(e) {
     e.preventDefault();
 
-    if (!email || !resetToken) {
+    if (!identifier || !resetToken) {
       const message =
         "Your reset session has expired. Please restart password recovery.";
       toast(message, "error");
@@ -86,7 +86,7 @@ export default function ResetPasswordPage() {
     try {
       await resetPassword(
         {
-          email,
+          identifier,
           resetToken,
           newPassword: passwordCheck.value,
         },
@@ -165,7 +165,7 @@ export default function ResetPasswordPage() {
           <div className="pt-4 text-center">
             <Link
               to={isAdmin ? "/login/admin" : "/login"}
-              className="text-sm font-semibold text-brand-600 hover:underline underline-offset-4"
+              className="text-sm font-semibold text-brand-600 transition-colors hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300"
             >
               Back to sign in
             </Link>

@@ -24,22 +24,42 @@ export async function login(payload, { admin = false } = {}) {
   return res.data.data;
 }
 
+export async function verifyAdminLoginOtp({ adminId, otp }) {
+  const res = await http.post(`${AUTH_BASE}/admin/login/verify-otp`, {
+    adminId,
+    otp,
+  });
+
+  return res.data.data;
+}
+
+export async function resendAdminLoginOtp({ adminId }) {
+  const res = await http.post(`${AUTH_BASE}/admin/login/resend-otp`, {
+    adminId,
+  });
+
+  return res.data;
+}
+
 /* ---------------------------------------------------
    Forgot password - OTP
 --------------------------------------------------- */
 
-export async function requestResetOtp(email, { admin = false } = {}) {
+export async function requestResetOtp(identifier, { admin = false } = {}) {
   const res = await http.post(
     `${authPath(admin)}/forgot-password/request-otp`,
-    { email }
+    { identifier }
   );
 
   return res.data;
 }
 
-export async function verifyResetOtp({ email, otp }, { admin = false } = {}) {
+export async function verifyResetOtp(
+  { identifier, otp },
+  { admin = false } = {}
+) {
   const res = await http.post(`${authPath(admin)}/forgot-password/verify-otp`, {
-    email,
+    identifier,
     otp,
   });
 
@@ -47,11 +67,11 @@ export async function verifyResetOtp({ email, otp }, { admin = false } = {}) {
 }
 
 export async function resetPassword(
-  { email, resetToken, newPassword },
+  { identifier, resetToken, newPassword },
   { admin = false } = {}
 ) {
   const res = await http.post(`${authPath(admin)}/forgot-password/reset`, {
-    email,
+    identifier,
     resetToken,
     newPassword,
   });

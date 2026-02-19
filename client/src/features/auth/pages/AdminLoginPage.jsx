@@ -8,7 +8,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
-import adminImg from "../../../assets/admin-img.avif";
+import adminImg from "../../../assets/admin-img.png";
 
 import { decodeJwt } from "../../../core/auth/jwt";
 import {
@@ -90,6 +90,23 @@ export default function AdminLoginPage() {
         { admin: true }
       );
 
+      if (data?.otpRequired) {
+        toast("Verification code sent to your admin email.", "success");
+
+        navigate("/admin/login/verify-otp", {
+          replace: true,
+          state: {
+            identifier: identifierCheck.value,
+            password, // Pass password for resend functionality
+            adminId: data.adminId,
+            remember,
+            emailMasked: data.emailMasked,
+          },
+        });
+
+        return;
+      }
+
       setAuthSession({
         token: data.token,
         user: data.user,
@@ -164,14 +181,12 @@ export default function AdminLoginPage() {
               onChange={(e) => setRemember(e.target.checked)}
               className="h-4.5 w-4.5 rounded-none border-surface-300 bg-surface-50 text-brand-600 focus:ring-brand-500/20 dark:border-surface-700 dark:bg-surface-950"
             />
-            <span className="select-none font-medium">
-              Remember this device
-            </span>
+            <span className="select-none">Remember this device</span>
           </label>
 
           <Link
             to="/admin/forgot-password"
-            className="text-sm font-semibold text-brand-600 hover:underline underline-offset-4 dark:text-brand-400"
+            className="text-sm font-semibold text-brand-600 transition-colors hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300"
           >
             Forgot password?
           </Link>
@@ -182,11 +197,11 @@ export default function AdminLoginPage() {
           Sign in
         </SubmitButton>
 
-        {/* Footer */}
+        {/* Admin link */}
         <div className="pt-4 text-center">
           <Link
             to="/login"
-            className="text-sm font-semibold text-brand-600 hover:underline underline-offset-4"
+            className="text-sm font-semibold text-brand-600 transition-colors hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300"
           >
             Back to sign in
           </Link>

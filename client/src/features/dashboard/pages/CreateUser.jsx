@@ -143,15 +143,19 @@ export default function CreateUser() {
             />
 
             <div className="space-y-2">
-              <label className="text-sm font-semibold text-surface-700 dark:text-surface-300">
+              <label
+                htmlFor="role"
+                className="block text-sm font-semibold text-surface-700 dark:text-surface-300 mb-2"
+              >
                 Role
               </label>
-
               <select
+                id="role"
                 name="role"
                 value={form.role}
                 onChange={updateField}
-                className="mt-2 w-full rounded-none border border-surface-200 bg-surface-50 px-4 py-3.5 text-base text-surface-900 transition-all focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/10 dark:border-surface-800 dark:bg-surface-950/50 dark:text-white"
+                className="w-full rounded-none border border-surface-200 bg-surface-50 px-4 py-4 text-base text-surface-900 transition-all focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/10 dark:border-surface-800 dark:bg-surface-950/50 dark:text-white"
+                required
               >
                 <option value="USER">Standard user</option>
                 <option value="SECURITY">Security officer</option>

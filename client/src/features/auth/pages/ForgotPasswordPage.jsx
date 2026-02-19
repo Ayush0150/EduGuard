@@ -7,11 +7,11 @@
 import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 
-import adminImg from "../../../assets/admin-img.avif";
+import adminImg from "../../../assets/admin-img.png";
 import collegeImg from "../../../assets/college-img.png";
 
 import { toast } from "../../../core/utils/toastEmitter";
-import { validateEmail } from "../../../core/utils/validation";
+import { validateIdentifier } from "../../../core/utils/validation";
 import { requestResetOtp } from "../api/authApi";
 
 import { AuthLayout } from "../components/AuthLayout";
@@ -25,7 +25,7 @@ export default function ForgotPasswordPage() {
   const isAdmin = location.pathname.includes("/admin");
   const backgroundImage = isAdmin ? adminImg : collegeImg;
 
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [busy, setBusy] = useState(false);
 
   /* ---------------------------------------------------
@@ -35,23 +35,26 @@ export default function ForgotPasswordPage() {
   async function handleRequestOtp(e) {
     e.preventDefault();
 
-    const emailCheck = validateEmail(email);
+    const identifierCheck = validateIdentifier(identifier);
 
-    if (!emailCheck.valid) {
-      toast(emailCheck.error, "error");
+    if (!identifierCheck.valid) {
+      toast(identifierCheck.error, "error");
       return;
     }
 
     setBusy(true);
 
     try {
-      await requestResetOtp(emailCheck.value, { admin: isAdmin });
+      const data = await requestResetOtp(identifierCheck.value, {
+        admin: isAdmin,
+      });
 
       toast("A verification code has been sent to your email.", "success");
 
       navigate(isAdmin ? "/admin/verify-otp" : "/verify-otp", {
         state: {
-          email: emailCheck.value,
+          identifier: identifierCheck.value,
+          emailMasked: data?.data?.emailMasked ?? "",
           admin: isAdmin,
         },
       });
@@ -69,7 +72,7 @@ export default function ForgotPasswordPage() {
   return (
     <AuthLayout
       title="Forgot password"
-      subtitle="Enter your email to get a verification code."
+      subtitle="Enter your email or username to get a verification code."
       backgroundImage={backgroundImage}
       logoLink={isAdmin ? "/login/admin" : "/login"}
     >
@@ -77,12 +80,12 @@ export default function ForgotPasswordPage() {
         {/* Recovery form */}
         <form className="space-y-6" onSubmit={handleRequestOtp} noValidate>
           <FormInput
-            id="email"
-            label="Email address"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="name@college.edu"
-            autoComplete="email"
+            id="identifier"
+            label="Email or username"
+            value={identifier}
+            onChange={(e) => setIdentifier(e.target.value)}
+            placeholder="name@college.edu or username"
+            autoComplete="username"
             required
           />
 
@@ -95,7 +98,7 @@ export default function ForgotPasswordPage() {
         <div className="pt-4 text-center">
           <Link
             to={isAdmin ? "/login/admin" : "/login"}
-            className="text-sm font-semibold text-brand-600 hover:underline underline-offset-4"
+            className="text-sm font-semibold text-brand-600 transition-colors hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300"
           >
             Back to sign in
           </Link>

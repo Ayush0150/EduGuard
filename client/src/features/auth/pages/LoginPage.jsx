@@ -167,7 +167,7 @@ export default function LoginPage() {
 
           <Link
             to="/forgot-password"
-            className="text-sm font-semibold text-brand-600 hover:underline underline-offset-4 dark:text-brand-400"
+            className="text-sm font-semibold text-brand-600 transition-colors hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300"
           >
             Forgot password?
           </Link>
@@ -182,7 +182,7 @@ export default function LoginPage() {
         <div className="pt-4 text-center">
           <Link
             to="/login/admin"
-            className="text-sm font-semibold text-brand-600 hover:underline underline-offset-4"
+            className="text-sm font-semibold text-brand-600 transition-colors hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300"
           >
             Sign in as admin
           </Link>

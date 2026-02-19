@@ -64,3 +64,17 @@ export const loginRateLimiter = createRateLimiter({
   max: 20,
   message: "Too many sign-in attempts. Please try again in 15 minutes.",
 });
+
+// OTP request protection (prevent OTP flooding)
+export const otpRateLimiter = createRateLimiter({
+  windowMs: 60 * 1000, // 1 minute
+  max: 3,
+  message: "Too many OTP requests. Please wait before requesting another code.",
+});
+
+// Password reset protection
+export const passwordResetRateLimiter = createRateLimiter({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 5,
+  message: "Too many password reset attempts. Please try again later.",
+});

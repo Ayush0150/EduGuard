@@ -26,12 +26,15 @@ export class TtlStore {
   constructor({ ttlMs = 5 * 60 * 1000, cleanupIntervalMs = 60 * 1000 } = {}) {
     this.ttlMs = ttlMs;
     this.map = new Map();
+    this.lastCleanup = Date.now();
+    this.cleanupIntervalMs = cleanupIntervalMs;
 
-    // Periodic cleanup to avoid memory buildup
-    this.cleanupTimer = setInterval(
-      () => this.cleanup(),
-      cleanupIntervalMs
-    );
+    // Adaptive cleanup - only run if store has entries
+    this.cleanupTimer = setInterval(() => {
+      if (this.map.size > 0) {
+        this.cleanup();
+      }
+    }, cleanupIntervalMs);
 
     // Allow Node process to exit normally
     this.cleanupTimer.unref?.();
@@ -78,15 +81,27 @@ export class TtlStore {
 
   /**
    * Cleanup expired entries
+   * (Now runs only when map has entries - adaptive optimization)
    */
   cleanup() {
     const now = Date.now();
+    let cleanedCount = 0;
 
     for (const [key, entry] of this.map.entries()) {
       if (now >= entry.expiresAt) {
         this.map.delete(key);
+        cleanedCount++;
       }
     }
+
+    this.lastCleanup = now;
+
+    // Return stats for monitoring
+    return {
+      cleanedCount,
+      remainingSize: this.map.size,
+      lastCleanup: this.lastCleanup,
+    };
   }
 
   /**

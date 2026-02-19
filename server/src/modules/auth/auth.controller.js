@@ -1,13 +1,15 @@
 import { env } from "../../core/config/env.js";
 import { asyncHandler } from "../../core/utils/asyncHandler.js";
+import { normalizeEmail } from "../../core/utils/helpers.js";
 
 import {
   getCurrentUser,
   loginAdmin,
   loginUser,
   requestPasswordResetOtp,
-  verifyPasswordResetOtp,
   resetPassword,
+  verifyAdminLoginOtp,
+  verifyPasswordResetOtp,
 } from "./auth.service.js";
 
 /**
@@ -26,10 +28,6 @@ import {
 /* =====================================================
    Helpers
 ===================================================== */
-
-function normalizeEmail(email) {
-  return String(email ?? "").trim().toLowerCase();
-}
 
 function isSmtpConfigured() {
   return Boolean(env.mail?.user) && Boolean(env.mail?.pass);
@@ -65,6 +63,13 @@ export const postLogin = asyncHandler(async (req, res) => {
  * POST /api/v1/auth/admin/login
  */
 export const postAdminLogin = asyncHandler(async (req, res) => {
+  if (!isSmtpConfigured()) {
+    return res.status(500).json({
+      success: false,
+      message: "Email service is not configured.",
+    });
+  }
+
   const result = await loginAdmin({
     ...req.body,
     ip: req.ip,
@@ -80,6 +85,64 @@ export const postAdminLogin = asyncHandler(async (req, res) => {
   return res.status(200).json({
     success: true,
     data: result.data,
+  });
+});
+
+/**
+ * POST /api/v1/auth/admin/login/verify-otp
+ */
+export const postAdminVerifyLoginOtp = asyncHandler(async (req, res) => {
+  const result = await verifyAdminLoginOtp({
+    adminId: req.body?.adminId,
+    otp: req.body?.otp,
+  });
+
+  if (!result?.ok) {
+    return res.status(result.status ?? 400).json({
+      success: false,
+      message: result.message ?? "Invalid or expired OTP",
+    });
+  }
+
+  return res.status(200).json({
+    success: true,
+    data: result.data,
+  });
+});
+
+/**
+ * POST /api/v1/auth/admin/login/resend-otp
+ *
+ * Resend OTP for admin login.
+ * Rate limited to prevent abuse.
+ */
+export const postAdminResendLoginOtp = asyncHandler(async (req, res) => {
+  if (!isSmtpConfigured()) {
+    return res.status(500).json({
+      success: false,
+      message: "Email service is not configured.",
+    });
+  }
+
+  const result = await resendAdminLoginOtp({
+    adminId: req.body?.adminId,
+    ip: req.ip,
+  });
+
+  if (!result?.ok) {
+    return res.status(result.status ?? 400).json({
+      success: false,
+      message: result.message ?? "Failed to resend verification code",
+    });
+  }
+
+  return res.status(200).json({
+    success: true,
+    message: result.data?.message,
+    data: {
+      emailMasked: result.data?.emailMasked,
+      expiresAt: result.data?.expiresAt,
+    },
   });
 });
 
@@ -128,7 +191,10 @@ export const postRequestOtp = asyncHandler(async (req, res) => {
     });
   }
 
-  const result = await requestPasswordResetOtp(req.body);
+  // Accepts { identifier: username or email } (legacy email supported)
+  const result = await requestPasswordResetOtp({
+    identifier: req.body?.identifier ?? req.body?.email,
+  });
 
   if (!result?.ok) {
     return res.status(result.status ?? 500).json({
@@ -147,7 +213,10 @@ export const postRequestOtp = asyncHandler(async (req, res) => {
  * POST /api/v1/auth/forgot-password/verify-otp
  */
 export const postVerifyOtp = asyncHandler(async (req, res) => {
-  const result = await verifyPasswordResetOtp(req.body);
+  const result = await verifyPasswordResetOtp({
+    identifier: req.body?.identifier ?? req.body?.email,
+    otp: req.body?.otp,
+  });
 
   if (!result?.ok) {
     return res.status(result.status ?? 400).json({
@@ -166,7 +235,11 @@ export const postVerifyOtp = asyncHandler(async (req, res) => {
  * POST /api/v1/auth/forgot-password/reset
  */
 export const postResetPassword = asyncHandler(async (req, res) => {
-  const result = await resetPassword(req.body);
+  const result = await resetPassword({
+    identifier: req.body?.identifier ?? req.body?.email,
+    resetToken: req.body?.resetToken,
+    newPassword: req.body?.newPassword,
+  });
 
   if (!result?.ok) {
     return res.status(result.status ?? 400).json({
@@ -203,16 +276,17 @@ export const postAdminRequestOtp = asyncHandler(async (req, res) => {
     });
   }
 
-  const email = normalizeEmail(req.body?.email);
+  const identifier = req.body?.identifier ?? req.body?.email;
+  const email = normalizeEmail(identifier);
 
-  if (email !== env.superAdminEmail) {
+  if (!email || email !== env.superAdminEmail) {
     return res.status(403).json({
       success: false,
       message: "Admin password reset is restricted.",
     });
   }
 
-  const result = await requestPasswordResetOtp({ email });
+  const result = await requestPasswordResetOtp({ identifier: email });
 
   if (!result?.ok) {
     return res.status(result.status ?? 500).json({
@@ -231,9 +305,10 @@ export const postAdminRequestOtp = asyncHandler(async (req, res) => {
  * POST /api/v1/auth/admin/forgot-password/verify-otp
  */
 export const postAdminVerifyOtp = asyncHandler(async (req, res) => {
-  const email = normalizeEmail(req.body?.email);
+  const identifier = req.body?.identifier ?? req.body?.email;
+  const email = normalizeEmail(identifier);
 
-  if (email !== env.superAdminEmail) {
+  if (!email || email !== env.superAdminEmail) {
     return res.status(403).json({
       success: false,
       message: "Admin password reset is restricted.",
@@ -241,7 +316,7 @@ export const postAdminVerifyOtp = asyncHandler(async (req, res) => {
   }
 
   const result = await verifyPasswordResetOtp({
-    email,
+    identifier: email,
     otp: req.body?.otp,
   });
 
@@ -262,9 +337,10 @@ export const postAdminVerifyOtp = asyncHandler(async (req, res) => {
  * POST /api/v1/auth/admin/forgot-password/reset
  */
 export const postAdminResetPassword = asyncHandler(async (req, res) => {
-  const email = normalizeEmail(req.body?.email);
+  const identifier = req.body?.identifier ?? req.body?.email;
+  const email = normalizeEmail(identifier);
 
-  if (email !== env.superAdminEmail) {
+  if (!email || email !== env.superAdminEmail) {
     return res.status(403).json({
       success: false,
       message: "Admin password reset is restricted.",
@@ -272,7 +348,7 @@ export const postAdminResetPassword = asyncHandler(async (req, res) => {
   }
 
   const result = await resetPassword({
-    email,
+    identifier: email,
     resetToken: req.body?.resetToken,
     newPassword: req.body?.newPassword,
   });
