@@ -190,54 +190,6 @@ export function createApp() {
     }
   });
 
-  app.post("/device", express.text({ type: "*/*" }), (req, res) => {
-    const rawData = req.body;
-
-    console.log("ESP32 Data:", rawData);
-
-    if (typeof app.locals.broadcast === "function") {
-      app.locals.broadcast(rawData);
-    }
-
-    res.send("OK");
-  });
-
-  app.post("/control", (req, res) => {
-    const { device, command } = req.body;
-
-    if (!device || !command) {
-      return res.status(400).json({ error: "Missing device or command" });
-    }
-
-    if (!app.locals.deviceCommands) {
-      app.locals.deviceCommands = {};
-    }
-
-    app.locals.deviceCommands[device] = command;
-
-    console.log("Control command stored:", device, command);
-
-    res.json({ status: "OK" });
-  });
-
-  app.get("/control", (req, res) => {
-    const device = req.query.device;
-
-    if (!device) {
-      return res.status(400).send("");
-    }
-
-    if (!app.locals.deviceCommands) {
-      app.locals.deviceCommands = {};
-    }
-
-    const command = app.locals.deviceCommands[device] || "";
-
-    app.locals.deviceCommands[device] = "";
-
-    res.send(command);
-  });
-
   /* =====================================================
      API Routes
   ===================================================== */
