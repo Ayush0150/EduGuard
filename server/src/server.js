@@ -1,10 +1,11 @@
-import express from "express";
 import mongoose from "mongoose";
 import { WebSocket, WebSocketServer } from "ws";
 import { createApp } from "./app.js";
 import { env } from "./core/config/env.js";
 import { connectMongo } from "./core/db/connectMongo.js";
 import { logger } from "./core/utils/logger.js";
+
+let deviceCommands = {};
 
 /**
  * EduGuard API Server Bootstrap
@@ -34,22 +35,12 @@ async function bootstrap() {
      2. Create Express App
   --------------------------------------------------- */
   const app = createApp();
-
-  app.use(express.json());
-  app.use(express.urlencoded({ extended: true }));
-
-  const wss = new WebSocketServer({ port: 8081 });
   let latestData = "";
-
-  wss.on("connection", (ws) => {
-    console.log("WebSocket Client Connected");
-
-    if (latestData) {
-      ws.send(latestData);
-    }
-  });
+  let wss = null;
 
   function broadcast(data) {
+    if (!wss) return;
+
     latestData = data;
 
     wss.clients.forEach((client) => {
@@ -60,12 +51,36 @@ async function bootstrap() {
   }
 
   app.locals.broadcast = broadcast;
+  app.locals.deviceCommands = deviceCommands;
+
+  app.post("/control", (req, res) => {
+    const { device, command } = req.body;
+    deviceCommands[device] = command;
+    res.json({ status: "OK" });
+  });
+
+  app.get("/control", (req, res) => {
+    const device = req.query.device;
+    const cmd = deviceCommands[device] || "";
+    deviceCommands[device] = "";
+    res.send(cmd);
+  });
 
   /* ---------------------------------------------------
      3. Start HTTP Server
   --------------------------------------------------- */
   const server = app.listen(8080, "0.0.0.0", () => {
     console.log("EduGuard API running on port 8080");
+  });
+
+  wss = new WebSocketServer({ server });
+
+  wss.on("connection", (ws) => {
+    console.log("WebSocket Client Connected");
+
+    if (latestData) {
+      ws.send(latestData);
+    }
   });
 
   /* ---------------------------------------------------

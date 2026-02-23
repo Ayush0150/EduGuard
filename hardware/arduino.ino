@@ -77,6 +77,9 @@ unsigned long acDebounce = 0;
 unsigned long emDebounce = 0;
 unsigned long manualDebounce = 0;
 
+/* ========= TWO WAY SERIAL ========= */
+String incomingCmd = "";
+
 /* ========= GAS ========= */
 int readGasAverage() {
   long sum = 0;
@@ -92,6 +95,45 @@ void startBell(int count) {
   bellLast = millis();
   buzzerState = true;
   digitalWrite(BUZZER, HIGH);
+}
+
+/* ========= WEB COMMAND HANDLER ========= */
+void handleCommand(String cmd) {
+
+  cmd.trim();
+
+  if (cmd == "AC_REQUEST") {
+    if (!acActive) {
+      acActive = true;
+      acPulse = true;
+      acStart = millis();
+      digitalWrite(AC_LED, HIGH);
+    }
+  }
+
+  if (cmd == "EMERGENCY_REQ") {
+    if (!emActive) {
+      emActive = true;
+      emPulse = true;
+      emStart = millis();
+      digitalWrite(EM_LED, HIGH);
+      bellActive = false;
+      digitalWrite(BUZZER, LOW);
+    }
+  }
+
+  if (cmd == "WASHROOM_REQUEST") {
+    dirtyLatched = true;
+    dirtyActive = true;
+    dirtyStart = millis();
+  }
+
+  if (cmd == "TEACHER_FORCE_PRESENT") {
+    teacherConfirmed = true;
+    teacherPresent = true;
+    teacherLocked = true;
+    digitalWrite(TEACHER_LED, HIGH);
+  }
 }
 
 void setup() {
@@ -120,6 +162,18 @@ void setup() {
 void loop() {
 
   unsigned long now = millis();
+
+  /* ===== SAFE TWO WAY SERIAL RECEIVE ===== */
+  while (Serial.available()) {
+    char c = Serial.read();
+    if (c == '\n') {
+      handleCommand(incomingCmd);
+      incomingCmd = "";
+    }
+    else if (c != '\r') {
+      incomingCmd += c;
+    }
+  }
 
   /* ===== PERIOD RESET ===== */
   if (now - periodStart >= PERIOD_DURATION) {
@@ -155,23 +209,19 @@ void loop() {
     }
   }
 
-  /* ===== PIR (ignore first 1 sec) ===== */
+  /* ===== PIR ===== */
   static unsigned long pirHighStart = 0;
   static bool pirValid = false;
 
   if (now - periodStart > PIR_IGNORE_TIME) {
-
     if (digitalRead(PIR_PIN) == HIGH) {
-      if (pirHighStart == 0)
-        pirHighStart = now;
-
+      if (pirHighStart == 0) pirHighStart = now;
       if (!pirValid && (now - pirHighStart >= 300))
         pirValid = true;
     } else {
       pirHighStart = 0;
       pirValid = false;
     }
-
   } else {
     pirHighStart = 0;
     pirValid = false;
@@ -222,7 +272,7 @@ void loop() {
       now - absentStart >= ABSENT_DURATION)
     teacherAbsentPulse = false;
 
-  /* ===== AC BUTTON ===== */
+  /* ===== AC ===== */
   if (digitalRead(AC_BTN) == LOW && acReady &&
       now - acDebounce > DEBOUNCE_TIME && !acActive) {
 
@@ -244,7 +294,7 @@ void loop() {
     digitalWrite(AC_LED, LOW);
   }
 
-  /* ===== EM BUTTON ===== */
+  /* ===== EMERGENCY ===== */
   if (digitalRead(EM_BTN) == LOW && emReady &&
       now - emDebounce > DEBOUNCE_TIME && !emActive) {
 
@@ -299,11 +349,13 @@ void loop() {
 
     lastSerial = now;
 
-    int hour = 0, minute = 0;
+    int hour = 0, minute = 0, second = 0;
+
     if (rtcOk) {
       DateTime t = rtc.now();
       hour = t.hour();
       minute = t.minute();
+      second = t.second();
     }
 
     Serial.print("class:706");
@@ -313,8 +365,17 @@ void loop() {
     Serial.print(",AC:"); Serial.print(acActive ? 1 : 0);
     Serial.print(",EM:"); Serial.print(emActive ? 1 : 0);
     Serial.print(",GS:"); Serial.print(gasValue);
-    Serial.print(",T:"); Serial.print(hour);
-    Serial.print(":"); Serial.print(minute);
+
+    Serial.print(",T:");
+    if (hour < 10) Serial.print("0");
+    Serial.print(hour);
+    Serial.print(":");
+    if (minute < 10) Serial.print("0");
+    Serial.print(minute);
+    Serial.print(":");
+    if (second < 10) Serial.print("0");
+    Serial.print(second);
+
     Serial.print(",isSystemActive:"); Serial.print(rtcOk ? "true" : "false");
     Serial.print(",isPresent:"); Serial.print(teacherConfirmed ? "true" : "false");
 
