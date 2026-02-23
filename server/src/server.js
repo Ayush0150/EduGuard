@@ -1,4 +1,6 @@
+import express from "express";
 import mongoose from "mongoose";
+import { WebSocket, WebSocketServer } from "ws";
 import { createApp } from "./app.js";
 import { env } from "./core/config/env.js";
 import { connectMongo } from "./core/db/connectMongo.js";
@@ -33,15 +35,37 @@ async function bootstrap() {
   --------------------------------------------------- */
   const app = createApp();
 
+  app.use(express.json());
+  app.use(express.urlencoded({ extended: true }));
+
+  const wss = new WebSocketServer({ port: 8081 });
+  let latestData = "";
+
+  wss.on("connection", (ws) => {
+    console.log("WebSocket Client Connected");
+
+    if (latestData) {
+      ws.send(latestData);
+    }
+  });
+
+  function broadcast(data) {
+    latestData = data;
+
+    wss.clients.forEach((client) => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(data);
+      }
+    });
+  }
+
+  app.locals.broadcast = broadcast;
+
   /* ---------------------------------------------------
      3. Start HTTP Server
   --------------------------------------------------- */
-  const server = app.listen(env.port, () => {
-    logger.info("EduGuard API server running", {
-      url: `http://localhost:${env.port}`,
-      port: env.port,
-      environment: env.nodeEnv,
-    });
+  const server = app.listen(8080, "0.0.0.0", () => {
+    console.log("EduGuard API running on port 8080");
   });
 
   /* ---------------------------------------------------
