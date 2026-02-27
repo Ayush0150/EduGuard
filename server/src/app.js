@@ -13,6 +13,8 @@ import { logger } from "./core/utils/logger.js";
 
 import { adminRouter } from "./modules/admin/admin.routes.js";
 import { authRouter } from "./modules/auth/auth.routes.js";
+import { eventRouter } from "./modules/events/event.routes.js";
+import { suggestionRouter } from "./modules/suggestions/suggestion.routes.js";
 
 /**
  * Express Application Factory
@@ -196,6 +198,8 @@ export function createApp() {
 
   app.use("/api/v1/auth", authRouter);
   app.use("/api/v1/admin", adminRouter);
+  app.use("/api/v1/events", eventRouter);
+  app.use("/api/v1/suggestions", suggestionRouter);
 
   /* =====================================================
      Error Handling (DO NOT CHANGE ORDER)

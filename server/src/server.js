@@ -5,6 +5,11 @@ import { createApp } from "./app.js";
 import { env } from "./core/config/env.js";
 import { connectMongo } from "./core/db/connectMongo.js";
 import { logger } from "./core/utils/logger.js";
+import { SmsCounter } from "./modules/sms/smsCounter.model.js";
+import {
+  toGsmPayloadWithCounters,
+  upsertSmsCounterFromTelemetry,
+} from "./modules/sms/smsCounter.service.js";
 
 /* ==========================================================
    EduGuard Enterprise WebSocket Server
@@ -58,6 +63,14 @@ async function bootstrap() {
   const app = createApp();
   const server = http.createServer(app);
   const wss = new WebSocketServer({ server });
+
+  const persistedCounters = await SmsCounter.find({}).lean();
+  persistedCounters.forEach((doc) => {
+    const payload = toGsmPayloadWithCounters(doc);
+    if (!payload) return;
+    const cacheKey = `${doc.device}:gsm`;
+    lastTelemetry.set(cacheKey, { payload, category: "gsm" });
+  });
 
   /* expose device map for health endpoint if needed */
   app.locals.websocketDevices = devices;
@@ -140,6 +153,17 @@ async function bootstrap() {
           const payload = data.payload;
           const category = data.category || "arduino"; // arduino | wifi | gsm | esp
 
+          if (category === "gsm" && data.device) {
+            upsertSmsCounterFromTelemetry(data.device, payload).catch(
+              (error) => {
+                logger.warn("SMS counter persistence skipped", {
+                  device: data.device,
+                  error: error.message,
+                });
+              }
+            );
+          }
+
           // Cache for new clients
           const cacheKey = `${data.device}:${category}`;
           lastTelemetry.set(cacheKey, { payload, category });
@@ -206,6 +230,28 @@ async function bootstrap() {
           devices.delete(ws.deviceId);
         }
         logger.info("Device disconnected", { device: ws.deviceId });
+
+        /* ── Mark cached GSM as offline so new clients don't see stale data ── */
+        const gsmCacheKey = `${ws.deviceId}:gsm`;
+        const cachedGsm = lastTelemetry.get(gsmCacheKey);
+        if (cachedGsm) {
+          // Preserve SMS counters but set gsmReady=false and clear live fields
+          const offlinePayload = cachedGsm.payload
+            .replace(/gsmReady=true/g, "gsmReady=false")
+            .replace(/signal=[^,]*/g, "signal=N/A")
+            .replace(/reg=[^,]*/g, "reg=N/A");
+          lastTelemetry.set(gsmCacheKey, {
+            payload: offlinePayload,
+            category: "gsm",
+          });
+          // Push offline GSM state to all dashboards immediately
+          broadcastDashboards(wss, {
+            type: "telemetry",
+            device: ws.deviceId,
+            payload: offlinePayload,
+            category: "gsm",
+          });
+        }
 
         broadcastDashboards(wss, {
           type: "device_status",

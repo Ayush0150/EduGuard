@@ -17,6 +17,12 @@ import {
   putUpdateUser,
 } from "./admin.controller.js";
 
+import {
+  deleteSmsCounterByDevice,
+  getAllSmsCounters,
+  getSmsCounterByDevice,
+  putSmsCounter,
+} from "../sms/smsCounter.controller.js";
 import { createUserSchema, updateUserSchema } from "./admin.validation.js";
 
 export const adminRouter = Router();
@@ -127,3 +133,28 @@ adminRouter.patch(
   validateObjectIdParam("id"),
   patchToggleUserStatus
 );
+
+/**
+ * GET /api/v1/admin/sms-counters
+ * List all SMS counters by device
+ */
+adminRouter.get("/sms-counters", getAllSmsCounters);
+
+/**
+ * GET /api/v1/admin/sms-counters/:device
+ * Get one device SMS counters
+ */
+adminRouter.get("/sms-counters/:device", getSmsCounterByDevice);
+
+/**
+ * PUT /api/v1/admin/sms-counters/:device
+ * Insert/update one device SMS counters
+ * body: { smsToday: number, smsMonth: number }
+ */
+adminRouter.put("/sms-counters/:device", putSmsCounter);
+
+/**
+ * DELETE /api/v1/admin/sms-counters/:device
+ * Delete one device SMS counters
+ */
+adminRouter.delete("/sms-counters/:device", deleteSmsCounterByDevice);

@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect } from "react";
 import {
   Navigate,
+  Outlet,
   Route,
   Routes,
   useLocation,
@@ -11,6 +12,7 @@ import { decodeJwt } from "./core/auth/jwt";
 import ProtectedRoute from "./core/auth/ProtectedRoute";
 import { getAuthSession } from "./core/auth/tokenStorage";
 import DashboardLayout from "./core/layout/DashboardLayout";
+import { TelemetryProvider } from "./features/dashboard/context/TelemetryContext";
 
 /* ------------------------------------
    Lazy loaded pages
@@ -48,6 +50,20 @@ const DashboardHome = lazy(
   () => import("./features/dashboard/pages/DashboardHome")
 );
 
+const GsmPage = lazy(() => import("./features/dashboard/pages/GsmPage"));
+
+const WifiPage = lazy(() => import("./features/dashboard/pages/WifiPage"));
+
+const ReportsPage = lazy(
+  () => import("./features/dashboard/pages/ReportsPage")
+);
+
+const SettingsPage = lazy(
+  () => import("./features/dashboard/pages/SettingsPage")
+);
+
+const AboutPage = lazy(() => import("./features/dashboard/pages/AboutPage"));
+
 const AdminDashboard = lazy(
   () => import("./features/dashboard/pages/AdminDashboard")
 );
@@ -55,6 +71,22 @@ const AdminDashboard = lazy(
 const CreateUser = lazy(() => import("./features/dashboard/pages/CreateUser"));
 
 const EditUser = lazy(() => import("./features/dashboard/pages/EditUser"));
+
+const AdminSuggestionsPage = lazy(
+  () => import("./features/dashboard/pages/AdminSuggestionsPage")
+);
+
+/* ------------------------------------
+   Telemetry-wrapped layout for user dashboard pages
+------------------------------------ */
+
+function TelemetryLayout() {
+  return (
+    <TelemetryProvider>
+      <Outlet />
+    </TelemetryProvider>
+  );
+}
 
 /* ------------------------------------
    Loader
@@ -126,7 +158,7 @@ export default function App() {
           <Route element={<DashboardLayout />}>
             <Route path="/access-denied" element={<AccessDeniedPage />} />
 
-            {/* User dashboard */}
+            {/* User dashboard — wrapped in TelemetryProvider for shared WebSocket */}
             <Route
               element={
                 <ProtectedRoute
@@ -139,7 +171,14 @@ export default function App() {
                 />
               }
             >
-              <Route path="/dashboard" element={<DashboardHome />} />
+              <Route element={<TelemetryLayout />}>
+                <Route path="/dashboard" element={<DashboardHome />} />
+                <Route path="/dashboard/gsm" element={<GsmPage />} />
+                <Route path="/dashboard/wifi" element={<WifiPage />} />
+                <Route path="/dashboard/reports" element={<ReportsPage />} />
+                <Route path="/dashboard/settings" element={<SettingsPage />} />
+                <Route path="/dashboard/about" element={<AboutPage />} />
+              </Route>
             </Route>
 
             {/* Admin dashboard */}
@@ -152,6 +191,7 @@ export default function App() {
                 <Route index element={<AdminDashboard />} />
                 <Route path="users/create" element={<CreateUser />} />
                 <Route path="users/:id" element={<EditUser />} />
+                <Route path="suggestions" element={<AdminSuggestionsPage />} />
               </Route>
             </Route>
           </Route>

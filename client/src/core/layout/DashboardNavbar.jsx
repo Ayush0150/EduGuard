@@ -4,7 +4,7 @@
  * Enhanced role-aware professional top navigation.
  */
 
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import eduGuardLogo from "../../assets/eduGuard-logo.png";
 import { clearAuthSession, getAuthSession } from "../auth/tokenStorage";
 import ThemeToggle from "../theme/ThemeToggle";
@@ -13,6 +13,7 @@ const ADMIN_ROLES = ["ADMIN", "SUPER_ADMIN"];
 
 export default function DashboardNavbar() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = getAuthSession();
 
   const role = user?.role;
@@ -47,11 +48,61 @@ export default function DashboardNavbar() {
 
           <nav className="hidden items-center gap-1 md:flex">
             {!isAdmin ? (
-              <NavLink to="/dashboard">Dashboard</NavLink>
+              <>
+                <NavLink
+                  to="/dashboard"
+                  active={location.pathname === "/dashboard"}
+                >
+                  Dashboard
+                </NavLink>
+                <NavLink
+                  to="/dashboard/gsm"
+                  active={location.pathname === "/dashboard/gsm"}
+                >
+                  GSM
+                </NavLink>
+                <NavLink
+                  to="/dashboard/wifi"
+                  active={location.pathname === "/dashboard/wifi"}
+                >
+                  WiFi
+                </NavLink>
+                <NavLink
+                  to="/dashboard/reports"
+                  active={location.pathname === "/dashboard/reports"}
+                >
+                  Reports
+                </NavLink>
+                <NavLink
+                  to="/dashboard/settings"
+                  active={location.pathname === "/dashboard/settings"}
+                >
+                  Settings
+                </NavLink>
+                <NavLink
+                  to="/dashboard/about"
+                  active={location.pathname === "/dashboard/about"}
+                >
+                  About Us
+                </NavLink>
+              </>
             ) : (
               <>
-                <NavLink to="/admin">Users</NavLink>
-                <NavLink to="/admin/users/create">Add user</NavLink>
+                <NavLink to="/admin" active={location.pathname === "/admin"}>
+                  Users
+                </NavLink>
+                <NavLink
+                  to="/admin/users/create"
+                  active={location.pathname === "/admin/users/create"}
+                >
+                  Add user
+                </NavLink>
+                <NavLink
+                  to="/admin/suggestions"
+                  active={location.pathname === "/admin/suggestions"}
+                >
+                  Suggestions
+                </NavLink>
               </>
             )}
           </nav>
@@ -101,11 +152,15 @@ export default function DashboardNavbar() {
   );
 }
 
-function NavLink({ to, children }) {
+function NavLink({ to, children, active }) {
   return (
     <Link
       to={to}
-      className="rounded-none px-4 py-2 text-sm font-semibold text-surface-600 transition-all hover:bg-surface-100 hover:text-surface-900 dark:text-surface-400 dark:hover:bg-surface-800 dark:hover:text-white"
+      className={`rounded-none px-4 py-2 text-sm font-semibold transition-all ${
+        active
+          ? "bg-brand-50 text-brand-700 dark:bg-brand-900/30 dark:text-brand-400"
+          : "text-surface-600 hover:bg-surface-100 hover:text-surface-900 dark:text-surface-400 dark:hover:bg-surface-800 dark:hover:text-white"
+      }`}
     >
       {children}
     </Link>
