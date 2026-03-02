@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import AnimatedPage from "../../../core/components/AnimatedPage";
 
 /* ════════════════════════════════════════════════════════════════
    CONSTANTS
@@ -323,7 +324,7 @@ export default function AdminSuggestionsPage() {
 
   /* ── render ── */
   return (
-    <div className="animate-fade-in space-y-6">
+    <AnimatedPage>
       {/* ═══ Header ═══ */}
       <div>
         <div className="mb-3 flex items-center gap-1.5 text-xs font-medium text-surface-400">
@@ -350,7 +351,7 @@ export default function AdminSuggestionsPage() {
               fetchTabCounts();
             }}
             disabled={loading}
-            className="flex items-center gap-2 rounded-none bg-brand-600 px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-brand-500/20 transition-all hover:bg-brand-700 disabled:opacity-50"
+            className="flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-brand-500/20 transition-all hover:bg-brand-700 disabled:opacity-50"
           >
             <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
             Refresh
@@ -359,7 +360,7 @@ export default function AdminSuggestionsPage() {
       </div>
 
       {/* ═══ Tabs ═══ */}
-      <div className="flex gap-1 overflow-x-auto rounded-none border border-surface-200 bg-white p-1 shadow-sm dark:border-surface-800 dark:bg-surface-900">
+      <div className="flex gap-1 overflow-x-auto rounded-xl border border-surface-200 bg-white p-1 shadow-sm dark:border-surface-800 dark:bg-surface-900">
         {TABS.map((tab) => {
           const count =
             tab.key === ""
@@ -373,7 +374,7 @@ export default function AdminSuggestionsPage() {
             <button
               key={tab.key}
               onClick={() => switchTab(tab.key)}
-              className={`flex items-center gap-2 rounded-none px-4 py-2.5 text-sm font-bold transition-all ${
+              className={`flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-bold transition-all ${
                 active
                   ? "bg-brand-600 text-white shadow-lg shadow-brand-500/20"
                   : "text-surface-500 hover:bg-surface-100 hover:text-surface-700 dark:hover:bg-surface-800 dark:hover:text-surface-300"
@@ -396,7 +397,7 @@ export default function AdminSuggestionsPage() {
       </div>
 
       {/* ═══ Filters Bar ═══ */}
-      <div className="rounded-none border border-surface-200 bg-white shadow-sm dark:border-surface-800 dark:bg-surface-900">
+      <div className="rounded-xl border border-surface-200 bg-white shadow-sm dark:border-surface-800 dark:bg-surface-900">
         <div className="flex items-center gap-2 border-b border-surface-100 px-5 py-3 dark:border-surface-800">
           <SlidersHorizontal size={14} className="text-surface-400" />
           <span className="text-xs font-bold uppercase tracking-wider text-surface-400">
@@ -425,7 +426,7 @@ export default function AdminSuggestionsPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search by name or message…"
-              className="w-full rounded-none border border-surface-200 bg-surface-50 py-2.5 pl-10 pr-4 text-sm font-semibold text-surface-800 outline-none transition-all placeholder:text-surface-400 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 dark:border-surface-700 dark:bg-surface-800 dark:text-surface-200 dark:placeholder:text-surface-500 dark:focus:border-brand-500 dark:focus:ring-brand-900/40"
+              className="w-full rounded-lg border border-surface-200 bg-surface-50 py-2.5 pl-10 pr-4 text-sm font-semibold text-surface-800 outline-none transition-all placeholder:text-surface-400 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 dark:border-surface-700 dark:bg-surface-800 dark:text-surface-200 dark:placeholder:text-surface-500 dark:focus:border-brand-500 dark:focus:ring-brand-900/40"
             />
             {search && (
               <button
@@ -449,7 +450,7 @@ export default function AdminSuggestionsPage() {
                 setCategory(e.target.value);
                 setCurrentPage(1);
               }}
-              className="appearance-none rounded-none border border-surface-200 bg-surface-50 py-2.5 pl-10 pr-10 text-sm font-semibold text-surface-800 outline-none transition-all focus:border-brand-400 focus:ring-2 focus:ring-brand-100 dark:border-surface-700 dark:bg-surface-800 dark:text-surface-200 dark:focus:border-brand-500 dark:focus:ring-brand-900/40"
+              className="appearance-none rounded-lg border border-surface-200 bg-surface-50 py-2.5 pl-10 pr-10 text-sm font-semibold text-surface-800 outline-none transition-all focus:border-brand-400 focus:ring-2 focus:ring-brand-100 dark:border-surface-700 dark:bg-surface-800 dark:text-surface-200 dark:focus:border-brand-500 dark:focus:ring-brand-900/40"
             >
               {CATEGORIES.map((c) => (
                 <option key={c.value} value={c.value}>
@@ -466,7 +467,7 @@ export default function AdminSuggestionsPage() {
               setPageSize(Number(e.target.value));
               setCurrentPage(1);
             }}
-            className="appearance-none rounded-none border border-surface-200 bg-surface-50 px-4 py-2.5 text-sm font-semibold text-surface-800 outline-none transition-all focus:border-brand-400 focus:ring-2 focus:ring-brand-100 dark:border-surface-700 dark:bg-surface-800 dark:text-surface-200 dark:focus:border-brand-500 dark:focus:ring-brand-900/40"
+            className="appearance-none rounded-lg border border-surface-200 bg-surface-50 px-4 py-2.5 text-sm font-semibold text-surface-800 outline-none transition-all focus:border-brand-400 focus:ring-2 focus:ring-brand-100 dark:border-surface-700 dark:bg-surface-800 dark:text-surface-200 dark:focus:border-brand-500 dark:focus:ring-brand-900/40"
           >
             {PAGE_SIZES.map((s) => (
               <option key={s} value={s}>
@@ -479,7 +480,7 @@ export default function AdminSuggestionsPage() {
 
       {/* ═══ Error Banner ═══ */}
       {error && (
-        <div className="flex items-center gap-3 rounded-none border border-red-200 bg-red-50 px-5 py-3.5 dark:border-red-800 dark:bg-red-900/20">
+        <div className="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-5 py-3.5 dark:border-red-800 dark:bg-red-900/20">
           <AlertTriangle
             size={16}
             className="shrink-0 text-red-600 dark:text-red-400"
@@ -505,7 +506,7 @@ export default function AdminSuggestionsPage() {
       )}
 
       {/* ═══ Table ═══ */}
-      <div className="overflow-hidden rounded-none border border-surface-200 bg-white shadow-sm dark:border-surface-800 dark:bg-surface-900">
+      <div className="overflow-hidden rounded-2xl border border-surface-200 bg-white shadow-sm dark:border-surface-800 dark:bg-surface-900">
         {/* Loading overlay */}
         {loading && suggestions.length > 0 && (
           <div className="flex items-center gap-2 border-b border-brand-100 bg-brand-50/60 px-5 py-2 dark:border-brand-900/40 dark:bg-brand-900/10">
@@ -932,7 +933,7 @@ export default function AdminSuggestionsPage() {
                   <button
                     key={p}
                     onClick={() => goToPage(p)}
-                    className={`flex h-8 min-w-[2rem] items-center justify-center rounded-none px-2 text-xs font-bold transition-all ${
+                    className={`flex h-8 min-w-[2rem] items-center justify-center rounded-lg px-2 text-xs font-bold transition-all ${
                       p === pagination.page
                         ? "bg-brand-600 text-white shadow-lg shadow-brand-500/20"
                         : "text-surface-600 hover:bg-surface-100 dark:text-surface-400 dark:hover:bg-surface-800"
@@ -994,7 +995,7 @@ export default function AdminSuggestionsPage() {
           />
         </div>
       )}
-    </div>
+    </AnimatedPage>
   );
 }
 
@@ -1010,7 +1011,7 @@ function ActionBtn({ onClick, title, className = "", children }) {
         onClick();
       }}
       title={title}
-      className={`flex h-7 w-7 items-center justify-center rounded-none transition-all ${className}`}
+      className={`flex h-7 w-7 items-center justify-center rounded-lg transition-all ${className}`}
     >
       {children}
     </button>
@@ -1020,7 +1021,7 @@ function ActionBtn({ onClick, title, className = "", children }) {
 function DeleteModal({ onConfirm, onCancel }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-      <div className="mx-4 w-full max-w-sm rounded-none border border-surface-200 bg-white p-6 shadow-2xl dark:border-surface-700 dark:bg-surface-900">
+      <div className="mx-4 w-full max-w-sm rounded-2xl border border-surface-200 bg-white p-6 shadow-2xl dark:border-surface-700 dark:bg-surface-900">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
             <Trash2 size={18} className="text-red-600 dark:text-red-400" />
@@ -1037,13 +1038,13 @@ function DeleteModal({ onConfirm, onCancel }) {
         <div className="mt-5 flex items-center justify-end gap-3">
           <button
             onClick={onCancel}
-            className="rounded-none border border-surface-200 bg-white px-4 py-2 text-sm font-bold text-surface-600 transition-all hover:bg-surface-50 dark:border-surface-700 dark:bg-surface-800 dark:text-surface-300 dark:hover:bg-surface-700"
+            className="rounded-lg border border-surface-200 bg-white px-4 py-2 text-sm font-bold text-surface-600 transition-all hover:bg-surface-50 dark:border-surface-700 dark:bg-surface-800 dark:text-surface-300 dark:hover:bg-surface-700"
           >
             Cancel
           </button>
           <button
             onClick={onConfirm}
-            className="rounded-none bg-red-600 px-4 py-2 text-sm font-bold text-white shadow-lg shadow-red-500/20 transition-all hover:bg-red-700"
+            className="rounded-lg bg-red-600 px-4 py-2 text-sm font-bold text-white shadow-lg shadow-red-500/20 transition-all hover:bg-red-700"
           >
             Delete
           </button>
@@ -1068,7 +1069,7 @@ function PaginationBtn({ onClick, disabled, title, children }) {
       onClick={onClick}
       disabled={disabled}
       title={title}
-      className="flex h-8 w-8 items-center justify-center rounded-none text-surface-500 transition-all hover:bg-surface-100 hover:text-surface-700 disabled:cursor-not-allowed disabled:opacity-30 dark:text-surface-400 dark:hover:bg-surface-800 dark:hover:text-white"
+      className="flex h-8 w-8 items-center justify-center rounded-lg text-surface-500 transition-all hover:bg-surface-100 hover:text-surface-700 disabled:cursor-not-allowed disabled:opacity-30 dark:text-surface-400 dark:hover:bg-surface-800 dark:hover:text-white"
     >
       {children}
     </button>
@@ -1077,10 +1078,10 @@ function PaginationBtn({ onClick, disabled, title, children }) {
 
 function StatCard({ label, value, icon: Icon, color }) {
   return (
-    <div className="overflow-hidden rounded-none border border-surface-200 bg-white shadow-sm dark:border-surface-800 dark:bg-surface-900">
+    <div className="overflow-hidden rounded-2xl border border-surface-200 bg-white shadow-sm dark:border-surface-800 dark:bg-surface-900">
       <div className="flex items-center gap-3 p-4">
         <div
-          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-none bg-gradient-to-br ${color} shadow-lg`}
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${color} shadow-lg`}
         >
           <Icon size={16} className="text-white" />
         </div>
@@ -1116,7 +1117,7 @@ function EmptyState({ hasFilters, onClear, activeTab }) {
 
   return (
     <div className="flex flex-col items-center gap-3">
-      <div className="flex h-14 w-14 items-center justify-center rounded-none bg-surface-100 dark:bg-surface-800">
+      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-surface-100 dark:bg-surface-800">
         <Inbox size={24} className="text-surface-400" />
       </div>
       <div className="text-center">
@@ -1130,7 +1131,7 @@ function EmptyState({ hasFilters, onClear, activeTab }) {
       {hasFilters && (
         <button
           onClick={onClear}
-          className="flex items-center gap-1.5 rounded-none bg-brand-50 px-4 py-2 text-xs font-bold text-brand-600 transition-colors hover:bg-brand-100 dark:bg-brand-900/20 dark:text-brand-400 dark:hover:bg-brand-900/30"
+          className="flex items-center gap-1.5 rounded-lg bg-brand-50 px-4 py-2 text-xs font-bold text-brand-600 transition-colors hover:bg-brand-100 dark:bg-brand-900/20 dark:text-brand-400 dark:hover:bg-brand-900/30"
         >
           <X size={12} />
           Clear Filters

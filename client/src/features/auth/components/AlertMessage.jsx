@@ -93,7 +93,7 @@ export const AlertMessage = forwardRef(function AlertMessage(
       ref={ref}
       role={config.role}
       aria-live="polite"
-      className={`relative rounded-none border p-3 text-sm shadow-sm ${config.styles} ${className}`}
+      className={`relative rounded-xl border p-3 text-sm shadow-sm ${config.styles} ${className}`}
     >
       <div className="flex items-start gap-2">
         {/* Icon */}

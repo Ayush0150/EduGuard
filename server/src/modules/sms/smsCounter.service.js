@@ -104,5 +104,7 @@ export function toGsmPayloadWithCounters(counterDoc) {
   if (!counterDoc) return null;
   const today = Number.isFinite(counterDoc.smsToday) ? counterDoc.smsToday : 0;
   const month = Number.isFinite(counterDoc.smsMonth) ? counterDoc.smsMonth : 0;
-  return `gsmReady=false,smsToday=${today},smsMonth=${month}`;
+  // Do NOT include gsmReady here — the server doesn't know the modem state.
+  // Live ESP32 telemetry will set the real gsmReady value.
+  return `smsToday=${today},smsMonth=${month}`;
 }

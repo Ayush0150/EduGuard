@@ -11,10 +11,6 @@ const TYPE_META = {
   teacherAbsent: { category: "attendance", severity: "warning" },
   teacherPresent: { category: "attendance", severity: "info" },
   periodChange: { category: "attendance", severity: "info" },
-  systemOnline: { category: "system", severity: "info" },
-  systemOffline: { category: "system", severity: "critical" },
-  wsConnected: { category: "system", severity: "info" },
-  wsDisconnected: { category: "system", severity: "warning" },
 };
 
 /** Dedup window — ignore duplicate type+device within this many ms */
@@ -154,4 +150,12 @@ export async function getEventStats(filters = {}) {
   });
 
   return { ok: true, data: result };
+}
+
+/**
+ * Purge all events from the database.
+ */
+export async function purgeAllEvents() {
+  const { deletedCount } = await Event.deleteMany({});
+  return { ok: true, deleted: deletedCount };
 }

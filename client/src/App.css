@@ -17,13 +17,18 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Smooth scroll for all navigations */
+html {
+  scroll-behavior: smooth;
+}
+
 /* -----------------------------------------------------
    Scrollbar Styling
 ----------------------------------------------------- */
 
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -31,22 +36,31 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background-color: rgba(100, 116, 139, 0.4);
+  background-color: rgba(100, 116, 139, 0.3);
   border-radius: 999px;
+  transition: background-color 0.2s;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(100, 116, 139, 0.5);
 }
 
 .dark ::-webkit-scrollbar-thumb {
-  background-color: rgba(148, 163, 184, 0.35);
+  background-color: rgba(148, 163, 184, 0.25);
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(148, 163, 184, 0.4);
 }
 
 /* Firefox */
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgba(100, 116, 139, 0.4) transparent;
+  scrollbar-color: rgba(100, 116, 139, 0.3) transparent;
 }
 
 .dark * {
-  scrollbar-color: rgba(148, 163, 184, 0.35) transparent;
+  scrollbar-color: rgba(148, 163, 184, 0.25) transparent;
 }
 
 /* -----------------------------------------------------
@@ -54,7 +68,7 @@ body {
 ----------------------------------------------------- */
 
 ::selection {
-  background-color: rgba(99, 102, 241, 0.25);
+  background-color: rgba(99, 102, 241, 0.2);
   color: inherit;
 }
 
@@ -67,11 +81,69 @@ body {
 }
 
 /* -----------------------------------------------------
+   Global Smooth Transitions
+   ---------------------------------------------------------
+   Make all interactive elements feel polished by default.
+----------------------------------------------------- */
+
+a,
+button,
+input,
+select,
+textarea {
+  transition-property:
+    color, background-color, border-color, box-shadow, opacity, transform;
+  transition-duration: 200ms;
+  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Buttons get a subtle press effect */
+button:not(:disabled):active,
+[role="button"]:not(:disabled):active {
+  transform: scale(0.98);
+}
+
+/* Links get a smooth color transition */
+a {
+  transition:
+    color 0.2s ease,
+    opacity 0.2s ease;
+}
+
+/* Cards and containers with borders get smooth theming */
+[class*="border"] {
+  transition: border-color 0.3s ease;
+}
+
+/* Smooth bg transitions for dark mode toggle */
+[class*="bg-surface"],
+[class*="bg-white"],
+[class*="bg-brand"] {
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease;
+}
+
+/* -----------------------------------------------------
+   Premium Form Focus Animations
+----------------------------------------------------- */
+
+input:focus,
+select:focus,
+textarea:focus {
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+/* -----------------------------------------------------
    Reduce motion support
 ----------------------------------------------------- */
 
 @media (prefers-reduced-motion: reduce) {
-  * {
+  *,
+  *::before,
+  *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;

@@ -179,7 +179,7 @@ export default function AdminLoginPage() {
               type="checkbox"
               checked={remember}
               onChange={(e) => setRemember(e.target.checked)}
-              className="h-4.5 w-4.5 rounded-none border-surface-300 bg-surface-50 text-brand-600 focus:ring-brand-500/20 dark:border-surface-700 dark:bg-surface-950"
+              className="h-4.5 w-4.5 rounded border-surface-300 bg-surface-50 text-brand-600 focus:ring-brand-500/20 dark:border-surface-700 dark:bg-surface-950"
             />
             <span className="select-none">Remember this device</span>
           </label>

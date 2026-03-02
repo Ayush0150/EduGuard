@@ -18,6 +18,7 @@ import {
   Zap,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import AnimatedPage from "../../../core/components/AnimatedPage";
 import { useTelemetry } from "../context/TelemetryContext";
 
 /* ================================================================
@@ -48,45 +49,6 @@ function parseToObject(line) {
     }
   });
   return obj;
-}
-
-function formatUptime(secs) {
-  if (!secs || isNaN(secs)) return "—";
-  const s = Number(secs);
-  const d = Math.floor(s / 86400);
-  const h = Math.floor((s % 86400) / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  if (d > 0) return `${d}d ${h}h ${m}m`;
-  if (h > 0) return `${h}h ${m}m`;
-  return `${m}m ${s % 60}s`;
-}
-
-function parseClockToSeconds(clockText) {
-  const match = String(clockText || "").match(
-    /^(\d{1,2}):(\d{1,2}):(\d{1,2})$/
-  );
-  if (!match) return null;
-  const h = Number(match[1]);
-  const m = Number(match[2]);
-  const s = Number(match[3]);
-  if (h > 23 || m > 59 || s > 59) return null;
-  return h * 3600 + m * 60 + s;
-}
-
-function formatClockFromSeconds(totalSeconds) {
-  const secondsInDay = 24 * 60 * 60;
-  const safe =
-    ((Number(totalSeconds) % secondsInDay) + secondsInDay) % secondsInDay;
-  const h = Math.floor(safe / 3600)
-    .toString()
-    .padStart(2, "0");
-  const m = Math.floor((safe % 3600) / 60)
-    .toString()
-    .padStart(2, "0");
-  const s = Math.floor(safe % 60)
-    .toString()
-    .padStart(2, "0");
-  return `${h}:${m}:${s}`;
 }
 
 /* ── Reusable Components ── */
@@ -201,15 +163,19 @@ function WaitingState({ icon: Icon, text }) {
 /* ═══════════════════════════════════════════════════════════════
    WASHROOM AIR-QUALITY CARD
    ═══════════════════════════════════════════════════════════════ */
-function WashroomAirCard({ gasValue, dirtyActive }) {
+function WashroomAirCard({ gasValue, dirtyActive, gasThreshold }) {
   const gs = Number(gasValue) || 0;
-  const SCALE = 3000;
-  const isAlert = gs > 2000;
-  const isElevated = gs > 1400 && !isAlert;
+  const threshold = Number(gasThreshold) || 2800;
+  const lowZone = Math.round(
+    threshold * 0.57
+  ); /* ~57% of threshold as "Normal" ceiling */
+  const SCALE = Math.max(4000, threshold * 1.5);
+  const isCritical = gs > threshold;
+  const isElevated = gs > lowZone && !isCritical;
   const pct = Math.min(97, (gs / SCALE) * 100);
 
-  const status = isAlert ? "Alert" : isElevated ? "Elevated" : "Clean";
-  const c = isAlert
+  const status = isCritical ? "Critical" : isElevated ? "Elevated" : "Normal";
+  const c = isCritical
     ? {
         border: "border-red-200 dark:border-red-800",
         bg: "bg-red-50/70 dark:bg-red-900/20",
@@ -272,24 +238,28 @@ function WashroomAirCard({ gasValue, dirtyActive }) {
       <div className="mt-4 space-y-1.5">
         <div className="flex justify-between text-[9px] font-bold uppercase tracking-wider text-surface-400">
           <span>0</span>
-          <span className="text-emerald-500">Clean ≤1400</span>
-          <span className="text-amber-500">Elevated ≤2000</span>
-          <span className="text-red-500">{"Alert >2000"}</span>
+          <span className="text-emerald-500">Normal ≤{lowZone}</span>
+          <span className="text-amber-500">Elevated ≤{threshold}</span>
+          <span className="text-red-500">{`Critical >${threshold}`}</span>
         </div>
         <div className="relative h-2.5 overflow-hidden rounded-full">
-          {/* Colour zone bands */}
+          {/* Colour zone bands — widths derived from threshold ratio */}
           <div className="absolute inset-0 flex">
             <div
               className="h-full bg-emerald-300/70 dark:bg-emerald-700/50"
-              style={{ width: "46.7%" }}
+              style={{ width: `${Math.round((lowZone / SCALE) * 100)}%` }}
             />
             <div
               className="h-full bg-amber-300/70 dark:bg-amber-700/50"
-              style={{ width: "20%" }}
+              style={{
+                width: `${Math.round(((threshold - lowZone) / SCALE) * 100)}%`,
+              }}
             />
             <div
               className="h-full bg-red-300/70 dark:bg-red-700/50"
-              style={{ width: "33.3%" }}
+              style={{
+                width: `${100 - Math.round((threshold / SCALE) * 100)}%`,
+              }}
             />
           </div>
           {/* Needle showing current reading */}
@@ -319,52 +289,20 @@ function WashroomAirCard({ gasValue, dirtyActive }) {
    SECTION 1 — Classroom Live View (Arduino telemetry)
    ═══════════════════════════════════════════════════════════════ */
 
-function ClassroomPanel({ dataString }) {
+function ClassroomPanel({
+  dataString,
+  graceSec = 10,
+  periodDurationSec = 60,
+  gasThreshold = 2800,
+  classroom,
+  telemetryFresh = true,
+}) {
   const d = useMemo(() => parseToObject(dataString), [dataString]);
   const empty = Object.keys(d).length === 0;
 
-  const [nowTick, setNowTick] = useState(Date.now());
-  const [clockAnchor, setClockAnchor] = useState({
-    baseSec: null,
-    startedAt: Date.now(),
-  });
-  const [periodAnchor, setPeriodAnchor] = useState({
-    baseSec: 0,
-    startedAt: Date.now(),
-  });
-
-  useEffect(() => {
-    const id = setInterval(() => setNowTick(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, []);
-
-  useEffect(() => {
-    const baseSec = parseClockToSeconds(d.T);
-    if (baseSec !== null) {
-      setClockAnchor({ baseSec, startedAt: Date.now() });
-    }
-  }, [d.T]);
-
-  useEffect(() => {
-    const baseSec = Number(d.PT);
-    if (!Number.isNaN(baseSec)) {
-      setPeriodAnchor({ baseSec, startedAt: Date.now() });
-    }
-  }, [d.PT, d.P]);
-
-  const liveClock = useMemo(() => {
-    if (clockAnchor.baseSec === null) return d.T || "";
-    const elapsed = Math.floor((nowTick - clockAnchor.startedAt) / 1000);
-    return formatClockFromSeconds(clockAnchor.baseSec + elapsed);
-  }, [clockAnchor, d.T, nowTick]);
-
-  const livePeriodSec = useMemo(() => {
-    const elapsed = Math.floor((nowTick - periodAnchor.startedAt) / 1000);
-    return Math.max(0, periodAnchor.baseSec + elapsed);
-  }, [periodAnchor, nowTick]);
-
-  const graceSec = 10;
-  const periodSec = livePeriodSec;
+  /* ── Use raw telemetry values directly — ESP32 sends every ~1 s, no interpolation needed ── */
+  const liveClock = d.T || "";
+  const periodSec = d.PT !== undefined ? Math.max(0, Number(d.PT)) : 0;
   const periodNum = d.P || "—";
   const graceActive = periodSec < graceSec;
   const gracePercent = graceActive
@@ -373,7 +311,7 @@ function ClassroomPanel({ dataString }) {
 
   const present = d.isPresent === "true";
   const absent = d.isTeacherAbsent === "true";
-  const systemOn = d.isSystemActive === "true";
+  const systemOn = telemetryFresh && d.isSystemActive === "true";
 
   return (
     <div className="rounded-2xl border border-surface-200 bg-white shadow-soft overflow-hidden dark:border-surface-800 dark:bg-surface-900">
@@ -388,7 +326,7 @@ function ClassroomPanel({ dataString }) {
               Live Classroom
             </p>
             <h2 className="mt-1 flex items-baseline gap-3 text-2xl font-black text-white">
-              Room {d.class || "706"}
+              Room {d.class || classroom || "—"}
               <span className="text-sm font-bold text-brand-200/80">
                 Period {periodNum}
               </span>
@@ -396,6 +334,13 @@ function ClassroomPanel({ dataString }) {
           </div>
 
           <div className="flex items-center gap-3">
+            {/* Device data freshness pill */}
+            {!telemetryFresh && !empty && (
+              <span className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider bg-amber-500/20 text-amber-200 ring-1 ring-amber-400/30">
+                <span className="inline-block h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
+                No Live Data
+              </span>
+            )}
             {/* System status pill */}
             <span
               className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider ${
@@ -547,6 +492,7 @@ function ClassroomPanel({ dataString }) {
               <WashroomAirCard
                 gasValue={d.GS}
                 dirtyActive={d.isWashroomDirty === "true"}
+                gasThreshold={gasThreshold}
               />
               <Stat
                 icon={Timer}
@@ -554,7 +500,7 @@ function ClassroomPanel({ dataString }) {
                 value={periodSec}
                 unit="s"
                 accent="bg-brand-500"
-                sub={`of 60s period`}
+                sub={`of ${periodDurationSec}s period`}
               />
               <Stat
                 icon={Zap}
@@ -616,30 +562,6 @@ const EVENT_DEFS = {
     label: "Period Changed",
     detail: "Bell rung — new period started",
     color: "brand",
-  },
-  systemOnline: {
-    icon: Activity,
-    label: "System Online",
-    detail: "ESP32 connected and reporting telemetry",
-    color: "emerald",
-  },
-  systemOffline: {
-    icon: XCircle,
-    label: "System Offline",
-    detail: "ESP32 heartbeat lost",
-    color: "red",
-  },
-  wsConnected: {
-    icon: Radio,
-    label: "WebSocket Connected",
-    detail: "Real-time data link established",
-    color: "cyan",
-  },
-  wsDisconnected: {
-    icon: Radio,
-    label: "WebSocket Disconnected",
-    detail: "Real-time data link lost",
-    color: "red",
   },
 };
 
@@ -778,7 +700,7 @@ function LiveEventFeed({ events }) {
         ) : (
           <div className="divide-y divide-surface-100/80 dark:divide-surface-800/60">
             {events.map((ev, i) => {
-              const def = EVENT_DEFS[ev.type] || EVENT_DEFS.systemOnline;
+              const def = EVENT_DEFS[ev.type] || EVENT_DEFS.periodChange;
               const EvIcon = def.icon;
               const pal = EVENT_COLORS[def.color] || EVENT_COLORS.brand;
               const isNew = i === 0;
@@ -859,38 +781,49 @@ export default function DashboardHome() {
     arduino,
     wifi,
     gsm,
-    esp,
     device,
+    configParsed,
     wsStatus,
     pendingCmd,
     sendCommand,
     events: allEvents,
+    telemetryFresh,
+    deviceOnline,
   } = useTelemetry();
 
   /* Parsed telemetry data */
   const arduinoParsed = useMemo(() => parseToObject(arduino), [arduino]);
   const wifiParsed = useMemo(() => parseToObject(wifi), [wifi]);
   const gsmParsed = useMemo(() => parseToObject(gsm), [gsm]);
-  const espParsed = useMemo(() => parseToObject(esp), [esp]);
   const devInfo = useMemo(() => parseToObject(device), [device]);
 
-  const graceActive =
-    arduinoParsed.PT !== undefined && Number(arduinoParsed.PT) < 10;
+  /* Config-derived values — drive entire dashboard from live settings */
+  const graceSec = Number(configParsed.graceDuration) || 10;
+  const periodDurationSec = Number(configParsed.periodDuration) || 60;
+  const gasThreshold = Number(configParsed.gasThreshold) || 2800;
+  const classroom = configParsed.classroom || "—";
   const teacherAlreadyPresent = arduinoParsed.isPresent === "true";
 
   /* Events from shared context (show latest 10 on dashboard) */
   const events = useMemo(() => allEvents.slice(0, 10), [allEvents]);
 
   /* ── Status Bar Indicators ── */
-  const systemActive = arduinoParsed.isSystemActive === "true";
-  const wifiConnected = !!(wifiParsed.rssi && wifiParsed.ip);
-  const wifiRssi = wifiParsed.rssi ? Number(wifiParsed.rssi) : null;
-  const gsmOk = gsmParsed.gsmReady === "true";
+  /* When telemetry is stale, override all device-side indicators to offline/unknown */
+  const systemActive =
+    telemetryFresh && arduinoParsed.isSystemActive === "true";
+  const wifiConnected =
+    telemetryFresh &&
+    wifiParsed.rssi !== undefined &&
+    wifiParsed.rssi !== "" &&
+    !!wifiParsed.ip;
+  const wifiRssi =
+    telemetryFresh && wifiParsed.rssi ? Number(wifiParsed.rssi) : null;
+  const gsmOk = telemetryFresh && gsmParsed.gsmReady === "true";
   const gsmSignal =
-    gsmParsed.signal && gsmParsed.signal !== "N/A" ? gsmParsed.signal : null;
-  const wsOk = wsStatus === "connected";
-  const espUptime = espParsed.uptime ? Number(espParsed.uptime) : null;
-  const deviceOnline = espUptime !== null && espUptime > 0;
+    telemetryFresh && gsmParsed.signal && gsmParsed.signal !== "N/A"
+      ? gsmParsed.signal
+      : null;
+  const wsOk = wsStatus === "connected" && (deviceOnline || telemetryFresh);
 
   const actions = [
     {
@@ -922,20 +855,18 @@ export default function DashboardHome() {
       label: "Force Present",
       desc: teacherAlreadyPresent
         ? "Teacher already marked present"
-        : graceActive
-          ? "Mark teacher via web"
-          : "Grace period expired",
+        : "Mark teacher present via web",
       icon: Users,
       color: teacherAlreadyPresent
         ? "bg-surface-400 hover:bg-surface-400 shadow-surface-400/20 focus-visible:ring-surface-400"
         : "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-500/25 focus-visible:ring-emerald-400",
-      disabled: !graceActive || teacherAlreadyPresent,
+      disabled: teacherAlreadyPresent,
     },
   ];
 
   return (
-    <div className="animate-fade-in space-y-6">
-      {/* ═══ Top Bar: Title + Connection ═══ */}
+    <div className="space-y-6">
+      {/* ═══ Top Bar: Title + Connection — renders instantly, no animation ═══ */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-black tracking-tight text-surface-900 dark:text-white">
@@ -954,22 +885,26 @@ export default function DashboardHome() {
             </span>
           )}
 
-          {/* Connection status */}
+          {/* Connection status — "Live" only when device is actually sending data */}
           <span
             className={`flex items-center gap-2 rounded-full px-3.5 py-1.5 text-xs font-bold uppercase tracking-wider ring-1 ring-inset ${
-              wsStatus === "connected"
+              wsStatus === "connected" && telemetryFresh
                 ? "bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:ring-emerald-800"
-                : wsStatus === "connecting"
+                : wsStatus === "connected"
                   ? "bg-amber-50 text-amber-700 ring-amber-200 animate-pulse dark:bg-amber-900/20 dark:text-amber-400 dark:ring-amber-800"
-                  : "bg-red-50 text-red-700 ring-red-200 dark:bg-red-900/20 dark:text-red-400 dark:ring-red-800"
+                  : wsStatus === "connecting"
+                    ? "bg-amber-50 text-amber-700 ring-amber-200 animate-pulse dark:bg-amber-900/20 dark:text-amber-400 dark:ring-amber-800"
+                    : "bg-red-50 text-red-700 ring-red-200 dark:bg-red-900/20 dark:text-red-400 dark:ring-red-800"
             }`}
           >
-            <StatusDot connected={wsStatus === "connected"} />
-            {wsStatus === "connected"
+            <StatusDot connected={wsStatus === "connected" && telemetryFresh} />
+            {wsStatus === "connected" && telemetryFresh
               ? "Live"
-              : wsStatus === "connecting"
-                ? "Connecting…"
-                : "Offline"}
+              : wsStatus === "connected"
+                ? "No Device"
+                : wsStatus === "connecting"
+                  ? "Connecting…"
+                  : "Offline"}
           </span>
         </div>
       </div>
@@ -1129,93 +1064,76 @@ export default function DashboardHome() {
                   ? "Connected"
                   : wsStatus === "connecting"
                     ? "Connecting…"
-                    : "Disconnected"}
-              </p>
-            </div>
-          </div>
-
-          {/* Device Uptime */}
-          <div className="flex min-w-0 flex-1 items-center gap-3 px-4 py-3 sm:px-5">
-            <div
-              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
-                deviceOnline
-                  ? "bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400"
-                  : "bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-400"
-              }`}
-            >
-              <Clock size={16} strokeWidth={2.5} />
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <span
-                  className={`inline-block h-2 w-2 rounded-full shadow-sm ${
-                    deviceOnline
-                      ? "bg-emerald-500 shadow-emerald-500/50"
-                      : "bg-red-500 shadow-red-500/50"
-                  }`}
-                />
-                <span className="text-xs font-bold uppercase tracking-wide text-surface-700 dark:text-surface-200">
-                  Device
-                </span>
-              </div>
-              <p
-                className={`mt-0.5 truncate text-[11px] font-semibold ${
-                  deviceOnline
-                    ? "text-amber-600 dark:text-amber-400"
-                    : "text-red-500 dark:text-red-400"
-                }`}
-              >
-                {deviceOnline
-                  ? `Online · ${formatUptime(espUptime)}`
-                  : "Offline"}
+                    : wsStatus === "connected" && !deviceOnline
+                      ? "Device Offline"
+                      : "Disconnected"}
               </p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* ═══ Quick Actions ═══ */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {actions.map(
-          ({ cmd, label, desc, icon: BtnIcon, color, disabled: forceDis }) => {
-            const isDisabled =
-              forceDis || pendingCmd !== null || wsStatus !== "connected";
-            const sending = pendingCmd === cmd;
+      {/* ═══ Animated content below the status bar ═══ */}
+      <AnimatedPage>
+        {/* ═══ Quick Actions ═══ */}
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {actions.map(
+            ({
+              cmd,
+              label,
+              desc,
+              icon: BtnIcon,
+              color,
+              disabled: forceDis,
+            }) => {
+              const isDisabled =
+                forceDis || pendingCmd !== null || wsStatus !== "connected";
+              const sending = pendingCmd === cmd;
 
-            return (
-              <button
-                key={cmd}
-                disabled={isDisabled}
-                onClick={() => sendCommand(cmd)}
-                className={`group relative flex flex-col items-start gap-1 rounded-xl px-5 py-4 text-left text-white shadow-lg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none ${color}`}
-              >
-                <div className="flex w-full items-center justify-between">
-                  {sending ? (
-                    <Activity className="animate-spin" size={20} />
-                  ) : (
-                    <BtnIcon size={20} />
-                  )}
-                  {sending && (
-                    <span className="text-[10px] font-bold uppercase tracking-wider opacity-80">
-                      Sending…
-                    </span>
-                  )}
-                </div>
-                <span className="text-sm font-bold leading-tight">{label}</span>
-                <span className="text-[11px] leading-tight opacity-70">
-                  {desc}
-                </span>
-              </button>
-            );
-          }
-        )}
-      </div>
+              return (
+                <button
+                  key={cmd}
+                  disabled={isDisabled}
+                  onClick={() => sendCommand(cmd)}
+                  className={`group relative flex flex-col items-start gap-1 rounded-xl px-5 py-4 text-left text-white shadow-lg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none ${color}`}
+                >
+                  <div className="flex w-full items-center justify-between">
+                    {sending ? (
+                      <Activity className="animate-spin" size={20} />
+                    ) : (
+                      <BtnIcon size={20} />
+                    )}
+                    {sending && (
+                      <span className="text-[10px] font-bold uppercase tracking-wider opacity-80">
+                        Sending…
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-sm font-bold leading-tight">
+                    {label}
+                  </span>
+                  <span className="text-[11px] leading-tight opacity-70">
+                    {desc}
+                  </span>
+                </button>
+              );
+            }
+          )}
+        </div>
 
-      {/* ═══ Classroom Live View ═══ */}
-      <ClassroomPanel dataString={arduino} />
+        {/* ═══ Classroom Live View ═══ */}
+        <ClassroomPanel
+          dataString={arduino}
+          graceSec={graceSec}
+          periodDurationSec={periodDurationSec}
+          gasThreshold={gasThreshold}
+          classroom={classroom}
+          telemetryFresh={telemetryFresh}
+        />
 
-      {/* ═══ Live Event Feed ═══ */}
-      <LiveEventFeed events={events} />
+        {/* ═══ Live Event Feed ═══ */}
+        <LiveEventFeed events={events} />
+      </AnimatedPage>
     </div>
   );
 }

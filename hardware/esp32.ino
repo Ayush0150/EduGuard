@@ -14,6 +14,7 @@
    - Throttled gas reads (every 250 ms)
    - Zero blocking delays — socketAwareWait() everywhere
    - WDT protected, anti-recursion guarded
+   - Full remote settings via dashboard WebSocket commands
    ================================================================ */
 
 #include <WiFi.h>
@@ -23,6 +24,7 @@
 #include "esp_system.h"
 #include "esp_task_wdt.h"
 #include "esp_idf_version.h"
+#include <Preferences.h>
 #include <cstring>
 
 /* ================ PIN MAPPING ================ */
@@ -39,34 +41,68 @@
 #define SIM_TX           4
 #define SIM_RX           5
 
-/* ================ CONFIGURATION ================ */
+/* ================ NETWORK CONFIGURATION ================ */
 const char* ssid       = "ACTFIBERNET";
-const char* password   = "act12345";
-const char* ws_host    = "192.168.0.112";
+const char* password   = "ayush@16032005";
+const char* ws_host    = "192.168.0.118";
 const uint16_t ws_port = 8080;
-#define ADMIN_NUM        "9260963100"
 
-#define FW_VERSION       "5.1.0-UNIFIED-FIXED"
+#define FW_VERSION       "6.0.0-SETTINGS"
 #define WDT_TIMEOUT      10
 
-/* ================ TIMING CONSTANTS ================ */
-#define PERIOD_DURATION      60000UL
-#define GRACE_DURATION       10000UL
+/* ================ CONFIGURABLE SETTINGS (runtime-mutable) ================ */
+/* Phone numbers — per alert type */
+char phoneEmergency[16]  = "9260963100";
+char phoneAbsent[16]     = "9260963100";
+char phoneWashroom[16]   = "9260963100";
+char phoneAC[16]         = "9260963100";
+
+/* Timing (milliseconds stored internally) */
+unsigned long cfgPeriodDuration = 60000UL;   // default 60 s
+unsigned long cfgGraceDuration  = 10000UL;   // default 10 s
+unsigned long cfgCallDuration   = 5000UL;    // default 5  s
+
+/* Sensor thresholds */
+int cfgGasHigh = 3000;
+
+/* Schedule */
+int cfgTotalPeriods = 10;
+
+/* Classroom identity */
+char cfgClassroom[8] = "706";
+
+/* Feature toggles */
+bool cfgHwEnabled   = true;
+bool cfgGsmEnabled  = true;
+bool cfgCallEnabled = true;
+
+/* Emergency buzzer duration (milliseconds) */
+unsigned long cfgEmBuzzerDuration = 5000UL;   // default 5 s
+
+/* Auto reboot (daily) */
+bool cfgAutoReboot   = false;
+int  cfgAutoRebootH  = 3;   // hour (0-23)
+int  cfgAutoRebootM  = 0;   // minute (0-59)
+bool autoRebootDone  = false; // latch so we only reboot once per minute
+
+/* SMS templates — customisable via dashboard, placeholders: {room} {time} {period} {gas} {date} */
+char smsTplEmergency[161] = "EMERGENCY Room {room}";
+char smsTplAbsent[161]    = "Teacher Absent {room}";
+char smsTplAC[161]        = "AC Req Room {room}";
+char smsTplWashroom[161]  = "Washroom Dirty {room}";
+
+/* ================ FIXED TIMING CONSTANTS ================ */
 #define PIR_STABLE_TIME      120UL
 #define PIR_IGNORE_TIME      300UL
-#define ACTIVE_DURATION      3000UL
-#define CALL_DURATION        5000UL
+#define ACTIVE_DURATION      5000UL
 #define SMS_ACK_TIMEOUT      5000UL
 #define DEBOUNCE_TIME        40UL
 #define ABSENT_SMS_CONFIRM   5000UL
-#define ABSENT_SMS_MAX_RETRY 3
-#define EM_SMS_MAX_RETRY     3
-#define EM_CALL_MAX_RETRY    3
-#define EM_RETRY_INTERVAL    800UL
 
-#define BELL_ON_TIME         150UL    // How long each beep sounds
-#define BELL_GAP_TIME        400UL    // Silence between beeps (so students can count)
-#define SIREN_INTERVAL       80UL     // Siren wail toggle rate (matches proven Arduino)
+#define BELL_ON_TIME         150UL
+#define BELL_GAP_TIME        400UL
+#define SIREN_INTERVAL       80UL
+#define WASH_SMS_COOLDOWN    60000UL
 
 #define WIFI_RETRY_INTERVAL  5000UL
 #define GSM_CHECK_INTERVAL   60000UL
@@ -74,11 +110,15 @@ const uint16_t ws_port = 8080;
 #define GSM_HEALTH_INTERVAL  10000UL
 #define ESP_HEALTH_INTERVAL  1000UL
 
-/* ================ SENSOR THRESHOLDS ================ */
-#define GAS_HIGH         2000
-#define GAS_LOW          1400
-#define GAS_SAMPLES      10
-#define GAS_READ_INTERVAL    250UL     // Read gas every 250 ms (optimization)
+#define MAX_EM_SMS_RETRIES   3
+#define EM_SMS_RETRY_DELAY   3000UL
+
+/* ================ SENSOR CONSTANTS ================ */
+#define GAS_LOW              1400
+#define GAS_SAMPLES          10
+#define GAS_READ_INTERVAL    250UL
+#define GAS_HIGH_CONFIRM     5000UL    /* gas must stay HIGH 5 s before trigger */
+#define GAS_LOW_CONFIRM      10000UL   /* gas must stay LOW 10 s before unlatch */
 
 /* ================ STATE OBJECTS ================ */
 RTC_DS3231 rtc;
@@ -116,6 +156,8 @@ bool dirtyActive = false, washLatched = false;
 bool rtcOk      = true,  wsConnected  = false;
 bool gsmReady   = false, buzzerState  = false;
 bool deviceInfoSent = false, callInProgress = false;
+bool configSynced   = false;   // send config once after WS connect
+bool templatesSynced = false;  // send SMS templates once after WS connect
 
 unsigned long lastGasRead = 0;
 
@@ -126,16 +168,19 @@ unsigned long acDebounce = 0, emDebounce = 0, manualDebounce = 0;
 /* Anti-recursion guard */
 bool inLogic = false;
 
-/* Alert flags with retry logic */
-int  acSmsRetry = 0, emSmsRetry = 0, washSmsRetry = 0, absentSmsRetry = 0;
-int  emCallRetry = 0;
+/* Alert flags */
 bool pendingAcSms  = false, pendingEmSms   = false, pendingEmCall   = false;
 bool pendingWashSms = false, pendingAbsentSms = false;
+int  emSmsRetries   = 0;   /* retry counter for emergency SMS */
 
 /* Per-period SMS latches */
 bool absentLatched = false;
+unsigned long washLastSmsAt = 0;   /* cooldown: last washroom SMS timestamp */
 
 char jsonBuf[768];
+
+/* NVS Preferences for persistent settings */
+Preferences prefs;
 
 /* =========================================================
    FORWARD DECLARATIONS
@@ -330,6 +375,42 @@ int readGasAverage() {
 }
 
 /* =========================================================
+   SMS TEMPLATE RENDERER — replaces {room},{time},{period},{gas},{date}
+   ========================================================= */
+void renderTemplate(const char* tpl, char* out, size_t outSize) {
+    size_t oi = 0;
+    const char* p = tpl;
+    while (*p && oi < outSize - 1) {
+        if (*p == '{') {
+            if (strncmp(p, "{room}", 6) == 0) {
+                for (const char* r = cfgClassroom; *r && oi < outSize - 1; r++) out[oi++] = *r;
+                p += 6; continue;
+            }
+            if (strncmp(p, "{time}", 6) == 0) {
+                if (rtcOk) { DateTime t = rtc.now(); int w = snprintf(out + oi, outSize - oi, "%02d:%02d:%02d", t.hour(), t.minute(), t.second()); if (w > 0) oi += w; }
+                p += 6; continue;
+            }
+            if (strncmp(p, "{period}", 8) == 0) {
+                int w = snprintf(out + oi, outSize - oi, "%d", periodNumber);
+                if (w > 0) oi += w;
+                p += 8; continue;
+            }
+            if (strncmp(p, "{gas}", 5) == 0) {
+                int w = snprintf(out + oi, outSize - oi, "%d", currentGasValue);
+                if (w > 0) oi += w;
+                p += 5; continue;
+            }
+            if (strncmp(p, "{date}", 6) == 0) {
+                if (rtcOk) { DateTime t = rtc.now(); int w = snprintf(out + oi, outSize - oi, "%02d/%02d/%04d", t.day(), t.month(), t.year()); if (w > 0) oi += w; }
+                p += 6; continue;
+            }
+        }
+        out[oi++] = *p++;
+    }
+    out[oi] = '\0';
+}
+
+/* =========================================================
    GSM INTERFACE
    ========================================================= */
 void checkGSM() {
@@ -338,14 +419,17 @@ void checkGSM() {
     gsmReady = smartFindAny("OK", NULL, 500);
 }
 
-bool execSMS(const char* msg) {
+bool execSMS(const char* msg, const char* phoneNum) {
     if (!gsmReady) return false;
 
-    sim800.println("AT+CMGF=1");
-    smartFindAny("OK", NULL, 500);
+    /* Flush any stale data from SIM800 serial buffer */
+    while (sim800.available()) { sim800.read(); }
 
-    sim800.printf("AT+CMGS=\"%s\"\r", ADMIN_NUM);
-    smartFindAny(">", NULL, 500);
+    sim800.println("AT+CMGF=1");
+    if (!smartFindAny("OK", NULL, 500)) return false;
+
+    sim800.printf("AT+CMGS=\"%s\"\r", phoneNum);
+    if (!smartFindAny(">", NULL, 500)) return false;
 
     sim800.print(msg);
     sim800.write(26);
@@ -354,7 +438,7 @@ bool execSMS(const char* msg) {
 }
 
 bool startEmergencyCall() {
-    if (!gsmReady || callInProgress) return false;
+    if (!gsmReady || callInProgress || !cfgCallEnabled) return false;
 
     while (sim800.available()) { sim800.read(); }
     sim800.println("AT");
@@ -362,7 +446,7 @@ bool startEmergencyCall() {
 
     while (sim800.available()) { sim800.read(); }
 
-    sim800.printf("ATD%s;\r", ADMIN_NUM);
+    sim800.printf("ATD%s;\r", phoneEmergency);
     bool dialAccepted = smartFindAny("OK", "CONNECT", 2500);
     if (!dialAccepted) return false;
 
@@ -372,11 +456,17 @@ bool startEmergencyCall() {
 }
 
 void processAlerts() {
+    /* Skip all GSM operations when GSM is disabled */
+    if (!cfgGsmEnabled) return;
+
     unsigned long now = millis();
 
-    if (callInProgress && (millis() - callStartTime >= CALL_DURATION)) {
+    if (callInProgress && (millis() - callStartTime >= cfgCallDuration)) {
         sim800.println("ATH");
+        smartFindAny("OK", NULL, 1000);   /* wait for hang-up ack */
+        while (sim800.available()) { sim800.read(); }  /* flush */
         callInProgress = false;
+        Serial.println("[CALL] Hung up after cfgCallDuration");
     }
 
     bool hasPendingAlert = pendingEmSms || pendingEmCall || pendingAcSms || pendingWashSms || pendingAbsentSms;
@@ -388,48 +478,54 @@ void processAlerts() {
 
     /* Emergency call starts only after emergency SMS phase is done */
     if (pendingEmCall && !pendingEmSms && !callInProgress) {
-        if (now - emLastAttempt >= EM_RETRY_INTERVAL) {
-            emLastAttempt = now;
-            if (startEmergencyCall()) {
-                pendingEmCall = false;
-                emCallRetry = 0;
-            } else if (emCallRetry >= EM_CALL_MAX_RETRY) {
-                pendingEmCall = false;
-                emCallRetry = 0;
-            } else {
-                emCallRetry++;
-            }
+        if (!cfgCallEnabled) {
+            pendingEmCall = false;
+        } else {
+            startEmergencyCall();
+            pendingEmCall = false;
         }
         return;
     }
 
+    /* Build dynamic SMS messages using templates */
+    char smsMsg[161];
+
     /* One SMS transaction per loop to avoid long GSM monopolization */
     if (pendingEmSms) {
-        bool emSmsSent = execSMS("EMERGENCY Room 706");
-        if (emSmsSent) {
+        /* Retry delay — don't hammer SIM800 on every loop */
+        if (emSmsRetries > 0 && (now - emLastAttempt < EM_SMS_RETRY_DELAY)) return;
+
+        renderTemplate(smsTplEmergency, smsMsg, sizeof(smsMsg));
+        emLastAttempt = now;
+
+        if (execSMS(smsMsg, phoneEmergency)) {
+            /* SMS sent successfully */
             markSmsSuccess();
-            pendingEmSms = false;
-            emSmsRetry = 0;
-            if (!callInProgress) {
-                pendingEmCall = true;
-                emCallRetry = 0;
-                emLastAttempt = 0;
-            } else {
+            pendingEmSms  = false;
+            emSmsRetries  = 0;
+            if (cfgCallEnabled && !callInProgress) {
                 pendingEmCall = true;
             }
-        } else if (emSmsRetry >= EM_SMS_MAX_RETRY) {
-            pendingEmSms = false;
-            emSmsRetry = 0;
-            pendingEmCall = false;
         } else {
-            emSmsRetry++;
+            emSmsRetries++;
+            Serial.printf("[SMS] Emergency SMS failed (attempt %d/%d)\n", emSmsRetries, MAX_EM_SMS_RETRIES);
+            if (emSmsRetries >= MAX_EM_SMS_RETRIES) {
+                Serial.println("[SMS] Emergency SMS ABANDONED after max retries");
+                pendingEmSms = false;
+                emSmsRetries = 0;
+                /* Still attempt the call even if SMS failed */
+                if (cfgCallEnabled && !callInProgress) {
+                    pendingEmCall = true;
+                }
+            }
+            /* Force a GSM re-check before next retry */
+            gsmReady = false;
         }
         return;
     }
 
     if (pendingAbsentSms && teacherLocked) {
         pendingAbsentSms   = false;
-        absentSmsRetry     = 0;
         teacherAbsentPulse = false;
         absentLatched      = false;
         absentCheckStart   = 0;
@@ -437,46 +533,24 @@ void processAlerts() {
     }
 
     if (pendingAbsentSms) {
-        if (execSMS("Teacher Absent 706")) {
-            markSmsSuccess();
-            pendingAbsentSms = false;
-            absentSmsRetry = 0;
-        } else if (absentSmsRetry >= ABSENT_SMS_MAX_RETRY) {
-            pendingAbsentSms = false;
-            absentSmsRetry = 0;
-        } else {
-            absentSmsRetry++;
-        }
+        renderTemplate(smsTplAbsent, smsMsg, sizeof(smsMsg));
+        if (execSMS(smsMsg, phoneAbsent)) markSmsSuccess();
+        pendingAbsentSms = false;
         return;
     }
 
     if (pendingAcSms) {
-        bool sent = execSMS("AC Req Room 706");
-        if (sent) {
-            markSmsSuccess();
-            pendingAcSms = false;
-            acSmsRetry = 0;
-        } else if (acSmsRetry >= 1) {
-            pendingAcSms = false;
-            acSmsRetry = 0;
-        } else {
-            acSmsRetry++;
-        }
+        renderTemplate(smsTplAC, smsMsg, sizeof(smsMsg));
+        if (execSMS(smsMsg, phoneAC)) markSmsSuccess();
+        pendingAcSms = false;
         return;
     }
 
     if (pendingWashSms) {
-        bool sent = execSMS("Washroom Dirty 706");
-        if (sent) {
-            markSmsSuccess();
-            pendingWashSms = false;
-            washSmsRetry = 0;
-        } else if (washSmsRetry >= 1) {
-            pendingWashSms = false;
-            washSmsRetry = 0;
-        } else {
-            washSmsRetry++;
-        }
+        renderTemplate(smsTplWashroom, smsMsg, sizeof(smsMsg));
+        if (execSMS(smsMsg, phoneWashroom)) markSmsSuccess();
+        pendingWashSms = false;
+        washLastSmsAt = millis();   /* start cooldown */
         return;
     }
 }
@@ -504,6 +578,20 @@ void runClassroomLogic() {
     if (inLogic) return;            /* Anti-recursion guard */
     inLogic = true;
 
+    /* Skip all hardware logic when disabled */
+    if (!cfgHwEnabled) {
+        /* Make sure buzzer and LEDs are off when HW is disabled */
+        digitalWrite(BUZZER, LOW);
+        digitalWrite(TEACHER_LED, LOW);
+        digitalWrite(AC_LED, LOW);
+        digitalWrite(EM_LED, LOW);
+        bellActive = false;
+        emActive = false;
+        acActive = false;
+        inLogic = false;
+        return;
+    }
+
     unsigned long now = millis();
     periodTime = (now - periodStart) / 1000;
 
@@ -516,15 +604,14 @@ void runClassroomLogic() {
     }
 
     /* --- Period Reset --- */
-    if (now - periodStart >= PERIOD_DURATION) {
-        periodNumber = (periodNumber % 10) + 1;
+    if (now - periodStart >= cfgPeriodDuration) {
+        periodNumber = (periodNumber % cfgTotalPeriods) + 1;
         periodStart  = now;
 
         teacherPresent = teacherLocked = teacherConfirmed = teacherAbsentPulse = false;
         absentLatched  = false;
         absentCheckStart = 0;
         pendingAbsentSms = false;
-        absentSmsRetry   = 0;
         digitalWrite(TEACHER_LED, LOW);
 
         bellActive  = true;
@@ -554,7 +641,6 @@ void runClassroomLogic() {
         teacherLocked    = true;
         teacherAbsentPulse = false;
         pendingAbsentSms   = false;
-        absentSmsRetry     = 0;
         absentLatched      = false;
         absentCheckStart   = 0;
         digitalWrite(TEACHER_LED, HIGH);
@@ -568,13 +654,12 @@ void runClassroomLogic() {
             teacherConfirmed = true;
             teacherAbsentPulse = false;
             pendingAbsentSms   = false;
-            absentSmsRetry     = 0;
             absentLatched      = false;
             absentCheckStart   = 0;
             digitalWrite(TEACHER_LED, HIGH);
         }
 
-        if (!teacherPresent && periodTime >= (GRACE_DURATION / 1000)) {
+        if (!teacherPresent && periodTime >= (int)(cfgGraceDuration / 1000)) {
             if (absentCheckStart == 0) {
                 absentCheckStart = now;
             }
@@ -594,7 +679,7 @@ void runClassroomLogic() {
         }
     }
 
-    if (teacherAbsentPulse && now - absentStart >= GRACE_DURATION)
+    if (teacherAbsentPulse && now - absentStart >= cfgGraceDuration)
         teacherAbsentPulse = false;
 
     /* --- AC Request (debounced, single-trigger while active) --- */
@@ -613,47 +698,77 @@ void runClassroomLogic() {
         digitalWrite(AC_LED, LOW);
     }
 
-    /* --- Emergency Request (debounced, single-trigger while active) --- */
-    if (!digitalRead(EM_BTN) && emReady && now - emDebounce > DEBOUNCE_TIME && !emActive) {
+    /* --- Emergency Request (debounced, re-trigger allowed for retry) --- */
+    if (!digitalRead(EM_BTN) && emReady && now - emDebounce > DEBOUNCE_TIME) {
         emDebounce = now;
         emReady    = false;
-        emActive   = emPulse = true;
-        emStart    = now;
-        sirenLast  = 0;              /* Force immediate first siren tone */
-        digitalWrite(EM_LED, HIGH);
-        pendingEmSms = true;
-        pendingEmCall = false;
-        emSmsRetry = 0;
-        emCallRetry = 0;
-        emLastAttempt = 0;
-        bellActive   = false;
-        digitalWrite(BUZZER, LOW);       /* Stop any bell immediately */
+        if (!emActive) {
+            /* Fresh emergency — full activation */
+            emActive   = emPulse = true;
+            emStart    = now;
+            sirenLast  = 0;              /* Force immediate first siren tone */
+            digitalWrite(EM_LED, HIGH);
+            pendingEmSms  = true;
+            pendingEmCall = false;
+            emSmsRetries  = 0;
+            emLastAttempt = 0;
+            bellActive   = false;
+            digitalWrite(BUZZER, LOW);       /* Stop any bell immediately */
+        } else if (!pendingEmSms) {
+            /* Re-trigger: emergency active but SMS already cleared — force retry */
+            pendingEmSms  = true;
+            pendingEmCall = false;
+            emSmsRetries  = 0;
+            emLastAttempt = 0;
+            emStart       = now;         /* Extend buzzer duration */
+            Serial.println("[EM] Re-trigger: forcing SMS retry");
+        }
     }
     if (digitalRead(EM_BTN)) emReady = true;
 
-    if (emActive && now - emStart >= ACTIVE_DURATION) {
+    if (emActive && now - emStart >= cfgEmBuzzerDuration) {
         emActive = emPulse = false;
         digitalWrite(EM_LED, LOW);
         digitalWrite(BUZZER, LOW);       /* Ensure buzzer stops with siren */
     }
 
-    /* --- Gas Sensor (hysteresis latch) --- */
-    if (currentGasValue > GAS_HIGH && !washLatched) {
-        washLatched  = true;
-        dirtyActive  = true;
-        dirtyStart   = now;
-        pendingWashSms = true;
+    /* --- Gas Sensor (industrial-grade: 5 s high confirm, 10 s low confirm, 60 s cooldown) --- */
+    static unsigned long gasHighStart = 0;
+    static unsigned long gasLowStart  = 0;
+    bool washCooldownOk = (washLastSmsAt == 0) || (now - washLastSmsAt >= WASH_SMS_COOLDOWN);
+
+    if (currentGasValue > cfgGasHigh && washCooldownOk) {
+        gasLowStart = 0;                 /* reset low-side timer */
+        if (gasHighStart == 0)
+            gasHighStart = now;
+        if (!washLatched && (now - gasHighStart >= GAS_HIGH_CONFIRM)) {
+            washLatched    = true;
+            dirtyActive    = true;
+            dirtyStart     = now;
+            pendingWashSms = true;
+        }
+    } else {
+        gasHighStart = 0;                /* gas dropped — reset high-side timer */
     }
+
     if (dirtyActive && now - dirtyStart >= ACTIVE_DURATION)
         dirtyActive = false;
-    if (currentGasValue < GAS_LOW)
-        washLatched = false;
+
+    /* Unlatch only after gas stays LOW for 10 s continuously */
+    if (currentGasValue < GAS_LOW) {
+        if (gasLowStart == 0)
+            gasLowStart = now;
+        if (washLatched && (now - gasLowStart >= GAS_LOW_CONFIRM))
+            washLatched = false;
+    } else {
+        gasLowStart = 0;
+    }
 
     /* --- BUZZER CONTROL (direct-drive, matches proven Arduino pattern) --- */
     if (emActive) {
-        /* Fast toggling siren wail — direct HIGH/LOW drive */
+        /* Emergency siren — rapid toggling buzzer */
         if (now - sirenLast >= SIREN_INTERVAL) {
-            sirenLast   = now;
+            sirenLast = now;
             buzzerState = !buzzerState;
             digitalWrite(BUZZER, buzzerState);
         }
@@ -693,14 +808,15 @@ void sendTelemetry() {
 
     char payload[512];
     snprintf(payload, sizeof(payload),
-      "class:706,P:%d,PT:%d,TP:%d,AC:%d,EM:%d,GS:%d,T:%02d:%02d:%02d,"
+      "class:%s,P:%d,PT:%d,TP:%d,AC:%d,EM:%d,GS:%d,T:%02d:%02d:%02d,"
       "isSystemActive:%s,isPresent:%s,isTeacherAbsent:%s,"
       "isACReq:%s,isEmergencyReq:%s,isWashroomDirty:%s",
+      cfgClassroom,
       periodNumber, periodTime, teacherPresent, acActive, emActive, currentGasValue,
       h, m, s,
-      rtcOk ? "true" : "false",
+      (rtcOk && cfgHwEnabled) ? "true" : "false",
       teacherConfirmed ? "true" : "false",
-      (periodTime < (int)(GRACE_DURATION / 1000) ? "null" : (teacherAbsentPulse ? "true" : "false")),
+      (periodTime < (int)(cfgGraceDuration / 1000) ? "null" : (teacherAbsentPulse ? "true" : "false")),
       acPulse ? "true" : "false",
       emPulse ? "true" : "false",
       dirtyActive ? "true" : "false"
@@ -737,6 +853,169 @@ void sendDeviceInfo() {
 }
 
 /* =========================================================
+   CONFIG SYNC — Send current settings to dashboard
+   ========================================================= */
+void sendConfigSync() {
+    if (!wsConnected || configSynced) return;
+
+    char payload[512];
+    snprintf(payload, sizeof(payload),
+      "hwEnabled=%s,gsmEnabled=%s,callEnabled=%s,"
+      "phoneEmergency=%s,phoneAbsent=%s,phoneWashroom=%s,phoneAC=%s,"
+      "periodDuration=%lu,graceDuration=%lu,callDuration=%lu,"
+      "gasThreshold=%d,totalPeriods=%d,classroom=%s,"
+      "emBuzzerDuration=%lu,autoReboot=%s,autoRebootH=%d,autoRebootM=%d",
+      cfgHwEnabled   ? "true" : "false",
+      cfgGsmEnabled  ? "true" : "false",
+      cfgCallEnabled ? "true" : "false",
+      phoneEmergency, phoneAbsent, phoneWashroom, phoneAC,
+      cfgPeriodDuration / 1000,   /* send as seconds to dashboard */
+      cfgGraceDuration  / 1000,
+      cfgCallDuration   / 1000,
+      cfgGasHigh,
+      cfgTotalPeriods,
+      cfgClassroom,
+      cfgEmBuzzerDuration / 1000,
+      cfgAutoReboot ? "true" : "false",
+      cfgAutoRebootH,
+      cfgAutoRebootM
+    );
+
+    snprintf(jsonBuf, sizeof(jsonBuf),
+      "{\"type\":\"telemetry\",\"device\":\"CLASSROOM-706\",\"category\":\"config\",\"payload\":\"%s\"}",
+      payload
+    );
+
+    if (webSocket.sendTXT(jsonBuf)) {
+        configSynced = true;
+        Serial.println("[INFO] Config synced to dashboard");
+    }
+}
+
+/* =========================================================
+   SMS TEMPLATES SYNC — Send current templates to dashboard
+   ========================================================= */
+void sendSmsTemplatesSync() {
+    if (!wsConnected || templatesSynced) return;
+
+    /* Static buffers — keeps them off the stack to avoid stack overflow
+       on the ESP32 loopTask (only 8 KB).  These are only touched here
+       so static is safe even though they persist between calls. */
+    static char tplPayload[700];
+    snprintf(tplPayload, sizeof(tplPayload),
+      "tplEmergency=%s|tplAbsent=%s|tplAC=%s|tplWashroom=%s",
+      smsTplEmergency, smsTplAbsent, smsTplAC, smsTplWashroom);
+
+    static char tplBuf[900];
+    snprintf(tplBuf, sizeof(tplBuf),
+      "{\"type\":\"telemetry\",\"device\":\"CLASSROOM-706\",\"category\":\"smsTemplates\",\"payload\":\"%s\"}",
+      tplPayload);
+
+    if (webSocket.sendTXT(tplBuf)) {
+        templatesSynced = true;
+        Serial.println("[INFO] SMS templates synced");
+    }
+}
+
+/* =========================================================
+   PERSISTENT SETTINGS — NVS save / load
+   ========================================================= */
+void saveSettings() {
+    prefs.begin("eduguard", false);   /* read-write */
+    prefs.putString("phEm",     phoneEmergency);
+    prefs.putString("phAbs",    phoneAbsent);
+    prefs.putString("phWash",   phoneWashroom);
+    prefs.putString("phAC",     phoneAC);
+    prefs.putULong("periodDur", cfgPeriodDuration);
+    prefs.putULong("graceDur",  cfgGraceDuration);
+    prefs.putULong("callDur",   cfgCallDuration);
+    prefs.putInt("gasHigh",     cfgGasHigh);
+    prefs.putInt("totalPer",    cfgTotalPeriods);
+    prefs.putString("classroom",cfgClassroom);
+    prefs.putBool("hwEn",       cfgHwEnabled);
+    prefs.putBool("gsmEn",      cfgGsmEnabled);
+    prefs.putBool("callEn",     cfgCallEnabled);
+    prefs.putULong("emBuzzDur", cfgEmBuzzerDuration);
+    prefs.putBool("autoReb",    cfgAutoReboot);
+    prefs.putInt("autoRebH",    cfgAutoRebootH);
+    prefs.putInt("autoRebM",    cfgAutoRebootM);
+    prefs.putString("tplEm",    smsTplEmergency);
+    prefs.putString("tplAbs",   smsTplAbsent);
+    prefs.putString("tplAC",    smsTplAC);
+    prefs.putString("tplWash",  smsTplWashroom);
+    prefs.end();
+    Serial.println("[NVS] Settings saved");
+}
+
+void loadSettings() {
+    prefs.begin("eduguard", true);   /* read-only */
+    /* Only load if namespace has been written before (check a known key) */
+    if (prefs.isKey("phEm")) {
+        prefs.getString("phEm",     phoneEmergency, sizeof(phoneEmergency));
+        prefs.getString("phAbs",    phoneAbsent,    sizeof(phoneAbsent));
+        prefs.getString("phWash",   phoneWashroom,  sizeof(phoneWashroom));
+        prefs.getString("phAC",     phoneAC,        sizeof(phoneAC));
+        cfgPeriodDuration   = prefs.getULong("periodDur", cfgPeriodDuration);
+        cfgGraceDuration    = prefs.getULong("graceDur",  cfgGraceDuration);
+        cfgCallDuration     = prefs.getULong("callDur",   cfgCallDuration);
+        cfgGasHigh          = prefs.getInt("gasHigh",     cfgGasHigh);
+        cfgTotalPeriods     = prefs.getInt("totalPer",    cfgTotalPeriods);
+        prefs.getString("classroom",cfgClassroom, sizeof(cfgClassroom));
+        cfgHwEnabled        = prefs.getBool("hwEn",       cfgHwEnabled);
+        cfgGsmEnabled       = prefs.getBool("gsmEn",      cfgGsmEnabled);
+        cfgCallEnabled      = prefs.getBool("callEn",     cfgCallEnabled);
+        cfgEmBuzzerDuration = prefs.getULong("emBuzzDur", cfgEmBuzzerDuration);
+        cfgAutoReboot       = prefs.getBool("autoReb",    cfgAutoReboot);
+        cfgAutoRebootH      = prefs.getInt("autoRebH",    cfgAutoRebootH);
+        cfgAutoRebootM      = prefs.getInt("autoRebM",    cfgAutoRebootM);
+        prefs.getString("tplEm",    smsTplEmergency, sizeof(smsTplEmergency));
+        prefs.getString("tplAbs",   smsTplAbsent,    sizeof(smsTplAbsent));
+        prefs.getString("tplAC",    smsTplAC,        sizeof(smsTplAC));
+        prefs.getString("tplWash",  smsTplWashroom,  sizeof(smsTplWashroom));
+        Serial.println("[NVS] Settings loaded from flash");
+    } else {
+        Serial.println("[NVS] No saved settings — using defaults");
+    }
+    prefs.end();
+}
+
+/* =========================================================
+   FACTORY RESET — Restore all settings to defaults + clear NVS
+   ========================================================= */
+void factoryReset() {
+    /* Clear NVS first */
+    prefs.begin("eduguard", false);
+    prefs.clear();
+    prefs.end();
+    Serial.println("[NVS] Cleared");
+
+    strncpy(phoneEmergency, "9260963100", sizeof(phoneEmergency));
+    strncpy(phoneAbsent,    "9260963100", sizeof(phoneAbsent));
+    strncpy(phoneWashroom,  "9260963100", sizeof(phoneWashroom));
+    strncpy(phoneAC,        "9260963100", sizeof(phoneAC));
+    cfgPeriodDuration = 60000UL;
+    cfgGraceDuration  = 10000UL;
+    cfgCallDuration   = 5000UL;
+    cfgGasHigh        = 3000;
+    cfgTotalPeriods   = 10;
+    strncpy(cfgClassroom, "706", sizeof(cfgClassroom));
+    cfgHwEnabled      = true;
+    cfgGsmEnabled     = true;
+    cfgCallEnabled    = true;
+    cfgEmBuzzerDuration = 5000UL;
+    cfgAutoReboot     = false;
+    cfgAutoRebootH    = 3;
+    cfgAutoRebootM    = 0;
+    strncpy(smsTplEmergency, "EMERGENCY Room {room}", sizeof(smsTplEmergency));
+    strncpy(smsTplAbsent,    "Teacher Absent {room}",  sizeof(smsTplAbsent));
+    strncpy(smsTplAC,        "AC Req Room {room}",     sizeof(smsTplAC));
+    strncpy(smsTplWashroom,  "Washroom Dirty {room}",  sizeof(smsTplWashroom));
+    Serial.println("[INFO] Factory reset — rebooting...");
+    delay(500);
+    ESP.restart();
+}
+
+/* =========================================================
    HEALTH — WiFi (15 s)
    ========================================================= */
 void sendWifiHealth() {
@@ -762,6 +1041,8 @@ void sendWifiHealth() {
    ========================================================= */
 void sendGsmHealth() {
     if (!wsConnected) return;
+    /* Skip GSM health when GSM is disabled */
+    if (!cfgGsmEnabled) return;
     if (callInProgress || pendingEmSms || pendingEmCall || pendingAcSms || pendingWashSms || pendingAbsentSms) return;
     if (millis() - lastGsmHealth < GSM_HEALTH_INTERVAL) return;
     lastGsmHealth = millis();
@@ -796,9 +1077,19 @@ void sendGsmHealth() {
     strncpy(netMode,lastNet,    sizeof(netMode) - 1);netMode[sizeof(netMode) - 1] = '\0';
 
     if (gsmReady) {
+        /* Macro-like lambda: abort health check if emergency triggered mid-read.
+           Flush serial so pending SMS starts with clean buffer. */
+        #define GSM_HEALTH_BAIL() do { \
+            if (emergencyPending()) { \
+                while (sim800.available()) sim800.read(); \
+                goto gsmHealthDone; \
+            } \
+        } while(0)
+
         /* Signal strength */
         sim800.println("AT+CSQ");
         readSIM(resp, sizeof(resp), 1000);
+        GSM_HEALTH_BAIL();
         char* p = strstr(resp, "+CSQ:");
         if (p) {
             p += 5; while (*p == ' ') p++;
@@ -814,6 +1105,7 @@ void sendGsmHealth() {
         /* Operator + network mode */
         sim800.println("AT+COPS?");
         readSIM(resp, sizeof(resp), 1000);
+        GSM_HEALTH_BAIL();
         p = strstr(resp, "\"");
         if (p) {
             p++;
@@ -847,6 +1139,7 @@ void sendGsmHealth() {
         /* Battery */
         sim800.println("AT+CBC");
         readSIM(resp, sizeof(resp), 1000);
+        GSM_HEALTH_BAIL();
         p = strstr(resp, "+CBC:");
         if (p) {
             p += 5; while (*p == ' ') p++;
@@ -859,6 +1152,7 @@ void sendGsmHealth() {
         /* Registration status */
         sim800.println("AT+CREG?");
         readSIM(resp, sizeof(resp), 1000);
+        GSM_HEALTH_BAIL();
         p = strstr(resp, "+CREG:");
         if (p) {
             p += 6; while (*p == ' ') p++;
@@ -871,6 +1165,7 @@ void sendGsmHealth() {
         /* IMEI */
         sim800.println("AT+GSN");
         readSIM(resp, sizeof(resp), 1000);
+        GSM_HEALTH_BAIL();
         if (extractFirstDigitLine(resp, candidate, sizeof(candidate))) {
             setIfValid(imei, sizeof(imei), candidate);
         }
@@ -878,6 +1173,7 @@ void sendGsmHealth() {
         /* ICCID */
         sim800.println("AT+CCID");
         readSIM(resp, sizeof(resp), 1000);
+        GSM_HEALTH_BAIL();
         if (extractFirstDigitLine(resp, candidate, sizeof(candidate))) {
             setIfValid(iccid, sizeof(iccid), candidate);
         }
@@ -885,6 +1181,7 @@ void sendGsmHealth() {
         /* SIM status */
         sim800.println("AT+CPIN?");
         readSIM(resp, sizeof(resp), 1000);
+        GSM_HEALTH_BAIL();
         p = strstr(resp, "+CPIN:");
         if (p) {
             p += 6; while (*p == ' ') p++;
@@ -893,7 +1190,11 @@ void sendGsmHealth() {
             candidate[i] = '\0';
             setIfValid(simStat, sizeof(simStat), candidate);
         }
+
+        #undef GSM_HEALTH_BAIL
     }
+
+gsmHealthDone:
 
     strncpy(lastSignal, signal, sizeof(lastSignal) - 1); lastSignal[sizeof(lastSignal) - 1] = '\0';
     strncpy(lastOper,   oper,   sizeof(lastOper) - 1);   lastOper[sizeof(lastOper) - 1] = '\0';
@@ -915,7 +1216,7 @@ void sendGsmHealth() {
 }
 
 /* =========================================================
-   HEALTH — ESP internals (10 s)
+   HEALTH — ESP internals (1 s)
    ========================================================= */
 void sendEspHealth() {
     if (!wsConnected) return;
@@ -950,6 +1251,28 @@ void sendEspHealth() {
 }
 
 /* =========================================================
+   AUTO REBOOT — Check RTC against configured reboot time
+   ========================================================= */
+void checkAutoReboot() {
+    if (!cfgAutoReboot || !rtcOk) return;
+
+    DateTime t = rtc.now();
+    int hh = t.hour();
+    int mm = t.minute();
+
+    if (hh == cfgAutoRebootH && mm == cfgAutoRebootM) {
+        if (!autoRebootDone) {
+            autoRebootDone = true;
+            Serial.println("[INFO] Auto-reboot triggered");
+            delay(200);
+            ESP.restart();
+        }
+    } else {
+        autoRebootDone = false;
+    }
+}
+
+/* =========================================================
    WEBSOCKET EVENT HANDLER
    ========================================================= */
 void webSocketEvent(WStype_t type, uint8_t* payload, size_t length) {
@@ -957,20 +1280,25 @@ void webSocketEvent(WStype_t type, uint8_t* payload, size_t length) {
         Serial.println("[WS] Connected");
         wsConnected    = true;
         deviceInfoSent = false;
+        configSynced   = false;
+        templatesSynced = false;
         webSocket.sendTXT("{\"type\":\"register\",\"device\":\"CLASSROOM-706\"}");
     }
     else if (type == WStype_DISCONNECTED) {
         Serial.println("[WS] Disconnected");
         wsConnected    = false;
         deviceInfoSent = false;
+        configSynced   = false;
+        templatesSynced = false;
     }
     else if (type == WStype_TEXT) {
-        char cmd[160];
+        char cmd[256];
         copyWsPayload(cmd, sizeof(cmd), payload, length);
         bool handled = false;
 
+        /* ── Existing control commands ── */
         if (strstr(cmd, "AC_REQUEST")) {
-            if (!acActive) {
+            if (!acActive && cfgHwEnabled) {
                 acActive = acPulse = true;
                 acStart  = millis();
                 digitalWrite(AC_LED, HIGH);
@@ -979,23 +1307,33 @@ void webSocketEvent(WStype_t type, uint8_t* payload, size_t length) {
             handled = true;
         }
         else if (strstr(cmd, "EMERGENCY_REQ")) {
-            if (!emActive) {
-                emActive = emPulse = true;
-                emStart  = millis();
-                sirenLast = 0;
-                digitalWrite(EM_LED, HIGH);
-                pendingEmSms = true;
-                pendingEmCall = false;
-                emSmsRetry = 0;
-                emCallRetry = 0;
-                emLastAttempt = 0;
-                bellActive = false;
-                digitalWrite(BUZZER, LOW);
+            if (cfgHwEnabled) {
+                if (!emActive) {
+                    /* Fresh emergency — full activation */
+                    emActive = emPulse = true;
+                    emStart  = millis();
+                    sirenLast = 0;
+                    digitalWrite(EM_LED, HIGH);
+                    pendingEmSms  = true;
+                    pendingEmCall = false;
+                    emSmsRetries  = 0;
+                    emLastAttempt = 0;
+                    bellActive = false;
+                    digitalWrite(BUZZER, LOW);
+                } else if (!pendingEmSms) {
+                    /* Re-trigger: emergency active but SMS already cleared — force retry */
+                    pendingEmSms  = true;
+                    pendingEmCall = false;
+                    emSmsRetries  = 0;
+                    emLastAttempt = 0;
+                    emStart       = millis();   /* Extend buzzer duration */
+                    Serial.println("[EM] Web re-trigger: forcing SMS retry");
+                }
             }
             handled = true;
         }
         else if (strstr(cmd, "WASHROOM_REQUEST")) {
-            if (!dirtyActive) {
+            if (!dirtyActive && cfgHwEnabled) {
                 dirtyActive = true;
                 dirtyStart  = millis();
                 pendingWashSms = true;
@@ -1006,10 +1344,304 @@ void webSocketEvent(WStype_t type, uint8_t* payload, size_t length) {
             teacherConfirmed = teacherPresent = teacherLocked = true;
             teacherAbsentPulse = false;
             pendingAbsentSms   = false;
-            absentSmsRetry     = 0;
             absentLatched      = false;
             absentCheckStart   = 0;
             digitalWrite(TEACHER_LED, HIGH);
+            handled = true;
+        }
+
+        /* ── Settings: Hardware Enable/Disable ── */
+        else if (strstr(cmd, "HW_ENABLE")) {
+            cfgHwEnabled = true;
+            Serial.println("[CFG] Hardware ENABLED");
+            handled = true;
+        }
+        else if (strstr(cmd, "HW_DISABLE")) {
+            cfgHwEnabled = false;
+            Serial.println("[CFG] Hardware DISABLED");
+            handled = true;
+        }
+
+        /* ── Settings: GSM Enable/Disable ── */
+        else if (strstr(cmd, "GSM_ENABLE")) {
+            cfgGsmEnabled = true;
+            Serial.println("[CFG] GSM ENABLED");
+            handled = true;
+        }
+        else if (strstr(cmd, "GSM_DISABLE")) {
+            cfgGsmEnabled = false;
+            Serial.println("[CFG] GSM DISABLED");
+            handled = true;
+        }
+
+        /* ── Settings: Missed Call Enable/Disable ── */
+        else if (strstr(cmd, "CALL_ENABLE")) {
+            cfgCallEnabled = true;
+            Serial.println("[CFG] Missed call ENABLED");
+            handled = true;
+        }
+        else if (strstr(cmd, "CALL_DISABLE")) {
+            cfgCallEnabled = false;
+            Serial.println("[CFG] Missed call DISABLED");
+            handled = true;
+        }
+
+        /* ── Settings: Auto Reboot Enable/Disable ── */
+        else if (strstr(cmd, "AUTO_REBOOT_ENABLE")) {
+            cfgAutoReboot = true;
+            autoRebootDone = false;
+            Serial.println("[CFG] Auto-reboot ENABLED");
+            handled = true;
+        }
+        else if (strstr(cmd, "AUTO_REBOOT_DISABLE")) {
+            cfgAutoReboot = false;
+            Serial.println("[CFG] Auto-reboot DISABLED");
+            handled = true;
+        }
+
+        /* ── Settings: Phone Numbers ── */
+        else if (strstr(cmd, "SET_PHONE_EMERGENCY:")) {
+            char* val = strstr(cmd, "SET_PHONE_EMERGENCY:") + 20;
+            char num[16]; int i = 0;
+            while (*val && *val != '"' && *val != '}' && i < 15) {
+                if (*val >= '0' && *val <= '9') num[i++] = *val;
+                val++;
+            }
+            num[i] = '\0';
+            if (i >= 10) {
+                strncpy(phoneEmergency, num, sizeof(phoneEmergency) - 1);
+                phoneEmergency[sizeof(phoneEmergency) - 1] = '\0';
+                Serial.printf("[CFG] Phone Emergency: %s\n", phoneEmergency);
+            }
+            handled = true;
+        }
+        else if (strstr(cmd, "SET_PHONE_ABSENT:")) {
+            char* val = strstr(cmd, "SET_PHONE_ABSENT:") + 17;
+            char num[16]; int i = 0;
+            while (*val && *val != '"' && *val != '}' && i < 15) {
+                if (*val >= '0' && *val <= '9') num[i++] = *val;
+                val++;
+            }
+            num[i] = '\0';
+            if (i >= 10) {
+                strncpy(phoneAbsent, num, sizeof(phoneAbsent) - 1);
+                phoneAbsent[sizeof(phoneAbsent) - 1] = '\0';
+                Serial.printf("[CFG] Phone Absent: %s\n", phoneAbsent);
+            }
+            handled = true;
+        }
+        else if (strstr(cmd, "SET_PHONE_WASHROOM:")) {
+            char* val = strstr(cmd, "SET_PHONE_WASHROOM:") + 19;
+            char num[16]; int i = 0;
+            while (*val && *val != '"' && *val != '}' && i < 15) {
+                if (*val >= '0' && *val <= '9') num[i++] = *val;
+                val++;
+            }
+            num[i] = '\0';
+            if (i >= 10) {
+                strncpy(phoneWashroom, num, sizeof(phoneWashroom) - 1);
+                phoneWashroom[sizeof(phoneWashroom) - 1] = '\0';
+                Serial.printf("[CFG] Phone Washroom: %s\n", phoneWashroom);
+            }
+            handled = true;
+        }
+        else if (strstr(cmd, "SET_PHONE_AC:")) {
+            char* val = strstr(cmd, "SET_PHONE_AC:") + 13;
+            char num[16]; int i = 0;
+            while (*val && *val != '"' && *val != '}' && i < 15) {
+                if (*val >= '0' && *val <= '9') num[i++] = *val;
+                val++;
+            }
+            num[i] = '\0';
+            if (i >= 10) {
+                strncpy(phoneAC, num, sizeof(phoneAC) - 1);
+                phoneAC[sizeof(phoneAC) - 1] = '\0';
+                Serial.printf("[CFG] Phone AC: %s\n", phoneAC);
+            }
+            handled = true;
+        }
+
+        /* ── Settings: Time Sync ── */
+        else if (strstr(cmd, "SET_TIME:")) {
+            char* val = strstr(cmd, "SET_TIME:") + 9;
+            int hh = -1, mm = -1;
+            char tbuf[6]; int ti = 0;
+            while (*val && *val != '"' && *val != '}' && ti < 5) {
+                tbuf[ti++] = *val++;
+            }
+            tbuf[ti] = '\0';
+            if (sscanf(tbuf, "%d:%d", &hh, &mm) == 2 && hh >= 0 && hh <= 23 && mm >= 0 && mm <= 59) {
+                if (rtcOk) {
+                    DateTime now = rtc.now();
+                    rtc.adjust(DateTime(now.year(), now.month(), now.day(), hh, mm, 0));
+                    Serial.printf("[CFG] RTC set to %02d:%02d\n", hh, mm);
+                }
+            }
+            handled = true;
+        }
+
+        /* ── Settings: Total Periods ── */
+        else if (strstr(cmd, "SET_TOTAL_PERIODS:")) {
+            char* val = strstr(cmd, "SET_TOTAL_PERIODS:") + 18;
+            int v = atoi(val);
+            if (v >= 1 && v <= 15) {
+                cfgTotalPeriods = v;
+                Serial.printf("[CFG] Total periods: %d\n", cfgTotalPeriods);
+            }
+            handled = true;
+        }
+
+        /* ── Settings: Period Duration (received in seconds) ── */
+        else if (strstr(cmd, "SET_PERIOD_DURATION:")) {
+            char* val = strstr(cmd, "SET_PERIOD_DURATION:") + 20;
+            long v = atol(val);
+            if (v >= 30 && v <= 7200) {
+                cfgPeriodDuration = (unsigned long)v * 1000UL;
+                Serial.printf("[CFG] Period duration: %lu ms\n", cfgPeriodDuration);
+            }
+            handled = true;
+        }
+
+        /* ── Settings: Gas Threshold ── */
+        else if (strstr(cmd, "SET_GAS_THRESHOLD:")) {
+            char* val = strstr(cmd, "SET_GAS_THRESHOLD:") + 18;
+            int v = atoi(val);
+            if (v >= 500 && v <= 5000) {
+                cfgGasHigh = v;
+                Serial.printf("[CFG] Gas threshold: %d\n", cfgGasHigh);
+            }
+            handled = true;
+        }
+
+        /* ── Settings: Grace Duration (received in seconds) ── */
+        else if (strstr(cmd, "SET_GRACE_DURATION:")) {
+            char* val = strstr(cmd, "SET_GRACE_DURATION:") + 19;
+            long v = atol(val);
+            if (v >= 5 && v <= 600) {
+                cfgGraceDuration = (unsigned long)v * 1000UL;
+                Serial.printf("[CFG] Grace duration: %lu ms\n", cfgGraceDuration);
+            }
+            handled = true;
+        }
+
+        /* ── Settings: Call Duration (received in seconds) ── */
+        else if (strstr(cmd, "SET_CALL_DURATION:")) {
+            char* val = strstr(cmd, "SET_CALL_DURATION:") + 18;
+            long v = atol(val);
+            if (v >= 1 && v <= 60) {
+                cfgCallDuration = (unsigned long)v * 1000UL;
+                Serial.printf("[CFG] Call duration: %lu ms\n", cfgCallDuration);
+            }
+            handled = true;
+        }
+
+        /* ── Settings: Classroom Number ── */
+        else if (strstr(cmd, "SET_CLASSROOM:")) {
+            char* val = strstr(cmd, "SET_CLASSROOM:") + 14;
+            char room[8]; int i = 0;
+            while (*val && *val != '"' && *val != '}' && *val != ' ' && i < 6) {
+                room[i++] = *val++;
+            }
+            room[i] = '\0';
+            if (i > 0) {
+                strncpy(cfgClassroom, room, sizeof(cfgClassroom) - 1);
+                cfgClassroom[sizeof(cfgClassroom) - 1] = '\0';
+                Serial.printf("[CFG] Classroom: %s\n", cfgClassroom);
+            }
+            handled = true;
+        }
+
+        /* ── Settings: Auto Reboot Time ── */
+        else if (strstr(cmd, "SET_AUTO_REBOOT_TIME:")) {
+            char* val = strstr(cmd, "SET_AUTO_REBOOT_TIME:") + 21;
+            int hh = -1, mm = -1;
+            char tbuf[6]; int ti = 0;
+            while (*val && *val != '"' && *val != '}' && ti < 5) {
+                tbuf[ti++] = *val++;
+            }
+            tbuf[ti] = '\0';
+            if (sscanf(tbuf, "%d:%d", &hh, &mm) == 2 && hh >= 0 && hh <= 23 && mm >= 0 && mm <= 59) {
+                cfgAutoRebootH = hh;
+                cfgAutoRebootM = mm;
+                autoRebootDone = false;
+                Serial.printf("[CFG] Auto-reboot time: %02d:%02d\n", cfgAutoRebootH, cfgAutoRebootM);
+            }
+            handled = true;
+        }
+
+        /* ── Settings: Emergency Buzzer Duration (received in seconds) ── */
+        else if (strstr(cmd, "SET_EM_BUZZER_DURATION:")) {
+            char* val = strstr(cmd, "SET_EM_BUZZER_DURATION:") + 23;
+            long v = atol(val);
+            if (v >= 1 && v <= 120) {
+                cfgEmBuzzerDuration = (unsigned long)v * 1000UL;
+                Serial.printf("[CFG] EM buzzer duration: %lu ms\n", cfgEmBuzzerDuration);
+            }
+            handled = true;
+        }
+
+        /* ── Settings: SMS Templates ── */
+        else if (strstr(cmd, "SET_SMS_TPL_EMERGENCY:")) {
+            char* val = strstr(cmd, "SET_SMS_TPL_EMERGENCY:") + 22;
+            if (strlen(val) > 0 && strlen(val) <= 160) {
+                strncpy(smsTplEmergency, val, sizeof(smsTplEmergency) - 1);
+                smsTplEmergency[sizeof(smsTplEmergency) - 1] = '\0';
+                Serial.printf("[CFG] SMS tpl emergency: %s\n", smsTplEmergency);
+            }
+            handled = true;
+        }
+        else if (strstr(cmd, "SET_SMS_TPL_ABSENT:")) {
+            char* val = strstr(cmd, "SET_SMS_TPL_ABSENT:") + 19;
+            if (strlen(val) > 0 && strlen(val) <= 160) {
+                strncpy(smsTplAbsent, val, sizeof(smsTplAbsent) - 1);
+                smsTplAbsent[sizeof(smsTplAbsent) - 1] = '\0';
+                Serial.printf("[CFG] SMS tpl absent: %s\n", smsTplAbsent);
+            }
+            handled = true;
+        }
+        else if (strstr(cmd, "SET_SMS_TPL_AC:")) {
+            char* val = strstr(cmd, "SET_SMS_TPL_AC:") + 15;
+            if (strlen(val) > 0 && strlen(val) <= 160) {
+                strncpy(smsTplAC, val, sizeof(smsTplAC) - 1);
+                smsTplAC[sizeof(smsTplAC) - 1] = '\0';
+                Serial.printf("[CFG] SMS tpl AC: %s\n", smsTplAC);
+            }
+            handled = true;
+        }
+        else if (strstr(cmd, "SET_SMS_TPL_WASHROOM:")) {
+            char* val = strstr(cmd, "SET_SMS_TPL_WASHROOM:") + 21;
+            if (strlen(val) > 0 && strlen(val) <= 160) {
+                strncpy(smsTplWashroom, val, sizeof(smsTplWashroom) - 1);
+                smsTplWashroom[sizeof(smsTplWashroom) - 1] = '\0';
+                Serial.printf("[CFG] SMS tpl washroom: %s\n", smsTplWashroom);
+            }
+            handled = true;
+        }
+
+        /* ── Device Actions ── */
+        else if (strstr(cmd, "DEVICE_FACTORY_RESET")) {
+            /* Send ack BEFORE reset */
+            snprintf(jsonBuf, sizeof(jsonBuf),
+              "{\"type\":\"control_ack\",\"device\":\"CLASSROOM-706\",\"payload\":\"DEVICE_FACTORY_RESET\"}");
+            webSocket.sendTXT(jsonBuf);
+            delay(200);
+            factoryReset();
+            return;   /* never reached */
+        }
+        else if (strstr(cmd, "DEVICE_RESTART")) {
+            snprintf(jsonBuf, sizeof(jsonBuf),
+              "{\"type\":\"control_ack\",\"device\":\"CLASSROOM-706\",\"payload\":\"DEVICE_RESTART\"}");
+            webSocket.sendTXT(jsonBuf);
+            delay(200);
+            Serial.println("[INFO] Dashboard-triggered restart");
+            ESP.restart();
+            return;   /* never reached */
+        }
+
+        /* ── Settings: Request Config (dashboard asks for current config) ── */
+        else if (strstr(cmd, "GET_CONFIG")) {
+            configSynced    = false;   /* force re-send */
+            templatesSynced = false;
             handled = true;
         }
 
@@ -1017,6 +1649,22 @@ void webSocketEvent(WStype_t type, uint8_t* payload, size_t length) {
             snprintf(jsonBuf, sizeof(jsonBuf),
               "{\"type\":\"control_ack\",\"device\":\"CLASSROOM-706\",\"payload\":\"%s\"}", cmd);
             webSocket.sendTXT(jsonBuf);
+
+            /* Re-sync config & templates to dashboard after any setting change */
+            configSynced    = false;
+            templatesSynced = false;
+
+            /* Persist to NVS if this was a settings command (not an action) */
+            bool isAction = strstr(cmd, "AC_REQUEST")
+                         || strstr(cmd, "EMERGENCY_REQ")
+                         || strstr(cmd, "WASHROOM_REQUEST")
+                         || strstr(cmd, "TEACHER_FORCE_PRESENT")
+                         || strstr(cmd, "GET_CONFIG")
+                         || strstr(cmd, "DEVICE_RESTART")
+                         || strstr(cmd, "DEVICE_FACTORY_RESET");
+            if (!isAction) {
+                saveSettings();
+            }
         }
     }
 }
@@ -1028,6 +1676,9 @@ void setup() {
     Serial.begin(115200);
     sim800.begin(9600, SERIAL_8N1, SIM_TX, SIM_RX);
     Wire.begin(21, 22);
+
+    /* Load persistent settings from NVS (before anything uses them) */
+    loadSettings();
 
 
     /* Watchdog */
@@ -1116,12 +1767,16 @@ void loop() {
     sendTelemetry();
 
     sendDeviceInfo();
+    sendConfigSync();
+    sendSmsTemplatesSync();
     sendWifiHealth();
     sendGsmHealth();
     sendEspHealth();
 
+    checkAutoReboot();
+
     /* Periodic GSM re-check if not ready */
-    if (!gsmReady && millis() - lastGsmRecheck >= GSM_CHECK_INTERVAL) {
+    if (cfgGsmEnabled && !gsmReady && millis() - lastGsmRecheck >= GSM_CHECK_INTERVAL) {
         lastGsmRecheck = millis();
         checkGSM();
         if (gsmReady) Serial.println("[GSM] Late init succeeded");

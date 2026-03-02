@@ -26,16 +26,18 @@ import {
   FileText,
   Filter,
   Loader2,
-  Radio,
   RefreshCw,
   Search,
   ShieldAlert,
+  Trash2,
   Users,
   Wind,
   XCircle,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import AnimatedPage from "../../../core/components/AnimatedPage";
+import PasswordConfirmModal from "../../../core/components/PasswordConfirmModal";
 import { useTelemetry } from "../context/TelemetryContext";
 
 /* ════════════════════════════════════════════════════════════════
@@ -79,37 +81,12 @@ const EVENT_DEFS = {
     category: "attendance",
     severity: "info",
   },
-  systemOnline: {
-    icon: Activity,
-    label: "System Online",
-    category: "system",
-    severity: "info",
-  },
-  systemOffline: {
-    icon: XCircle,
-    label: "System Offline",
-    category: "system",
-    severity: "critical",
-  },
-  wsConnected: {
-    icon: Radio,
-    label: "WebSocket Connected",
-    category: "system",
-    severity: "info",
-  },
-  wsDisconnected: {
-    icon: Radio,
-    label: "WebSocket Disconnected",
-    category: "system",
-    severity: "warning",
-  },
 };
 
 const REPORT_TYPES = [
   { value: "all", label: "All Events" },
   { value: "attendance", label: "Attendance Report" },
   { value: "alert", label: "Alerts & Emergencies" },
-  { value: "system", label: "System Health" },
 ];
 
 const SEVERITY_STYLES = {
@@ -197,7 +174,7 @@ function metaToString(meta) {
 
 function buildExportRows(events) {
   return events.map((ev, i) => {
-    const def = EVENT_DEFS[ev.type] || EVENT_DEFS.systemOnline;
+    const def = EVENT_DEFS[ev.type] || EVENT_DEFS.periodChange;
     return {
       "#": i + 1,
       Date: formatDate(ev.ts),
@@ -606,7 +583,7 @@ function DataTable({ events, page, setPage }) {
               </thead>
               <tbody className="divide-y divide-surface-100/80 dark:divide-surface-800/60">
                 {pageEvents.map((ev, i) => {
-                  const def = EVENT_DEFS[ev.type] || EVENT_DEFS.systemOnline;
+                  const def = EVENT_DEFS[ev.type] || EVENT_DEFS.periodChange;
                   const EvIcon = def.icon;
                   const sevStyle =
                     SEVERITY_STYLES[def.severity] || SEVERITY_STYLES.info;
@@ -877,6 +854,32 @@ export default function ReportsPage() {
     fetchEvents();
   }, [fetchEvents]);
 
+  /* ── Reset report data ── */
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetting, setResetting] = useState(false);
+
+  const handleResetData = useCallback(async () => {
+    setResetting(true);
+    try {
+      const token =
+        localStorage.getItem("eduguard_access_token") ||
+        sessionStorage.getItem("eduguard_access_token");
+      const res = await fetch(`${API_BASE}/api/v1/events`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setDbEvents([]);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setResetting(false);
+    }
+  }, [API_BASE]);
+
   /* ── Merge DB events with live events (dedup by type+ts proximity) ── */
   const allEvents = useMemo(() => {
     if (dbEvents.length === 0) return liveEvents;
@@ -967,7 +970,6 @@ export default function ReportsPage() {
       acRequests: 0,
       emergencies: 0,
       washroom: 0,
-      system: 0,
     };
     filteredEvents.forEach((ev) => {
       switch (ev.type) {
@@ -985,12 +987,6 @@ export default function ReportsPage() {
           break;
         case "washroom":
           counts.washroom++;
-          break;
-        case "systemOnline":
-        case "systemOffline":
-        case "wsConnected":
-        case "wsDisconnected":
-          counts.system++;
           break;
       }
     });
@@ -1033,13 +1029,6 @@ export default function ReportsPage() {
       sub: "Gas threshold breaches",
       color: "amber",
     },
-    {
-      icon: Activity,
-      label: "System Events",
-      value: summary.system,
-      sub: "Online / offline / WS events",
-      color: "emerald",
-    },
   ];
 
   /* For PDF export summary */
@@ -1056,7 +1045,7 @@ export default function ReportsPage() {
   };
 
   return (
-    <div className="animate-fade-in space-y-6">
+    <AnimatedPage>
       {/* ═══ Breadcrumb & Title ═══ */}
       <div>
         <div className="flex items-center gap-1.5 text-xs font-medium text-surface-400 mb-3">
@@ -1081,6 +1070,18 @@ export default function ReportsPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowResetModal(true)}
+              disabled={resetting || allEvents.length === 0}
+              title="Reset all report data"
+              className="flex h-8 w-8 items-center justify-center rounded-full border border-red-200 text-red-500 transition-all hover:bg-red-50 hover:text-red-600 disabled:opacity-40 dark:border-red-800 dark:hover:bg-red-900/30 dark:hover:text-red-400"
+            >
+              {resetting ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <Trash2 size={14} />
+              )}
+            </button>
             <button
               onClick={fetchEvents}
               disabled={loading}
@@ -1147,7 +1148,7 @@ export default function ReportsPage() {
       />
 
       {/* ═══ Summary Cards ═══ */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-6">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-5">
         {summaryCards.map((card) => (
           <SummaryCard key={card.label} {...card} />
         ))}
@@ -1162,6 +1163,17 @@ export default function ReportsPage() {
         summaryData={summaryExportData}
         disabled={filteredEvents.length === 0}
       />
-    </div>
+
+      {/* ═══ Reset Data Modal ═══ */}
+      <PasswordConfirmModal
+        open={showResetModal}
+        title="Reset Report Data"
+        description="All event history will be permanently deleted. This cannot be undone."
+        confirmLabel="Reset All Data"
+        variant="danger"
+        onConfirm={handleResetData}
+        onCancel={() => setShowResetModal(false)}
+      />
+    </AnimatedPage>
   );
 }

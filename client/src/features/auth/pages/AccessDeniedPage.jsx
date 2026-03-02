@@ -13,7 +13,7 @@ export default function AccessDeniedPage({
 }) {
   return (
     <div className="flex min-h-[70vh] items-center justify-center px-4">
-      <div className="w-full max-w-lg animate-fade-in rounded-none border border-surface-200 bg-white p-10 text-center shadow-soft dark:border-surface-800 dark:bg-surface-900">
+      <div className="w-full max-w-lg animate-fade-in rounded-2xl border border-surface-200 bg-white p-10 text-center shadow-soft dark:border-surface-800 dark:bg-surface-900">
         {/* Icon */}
         <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-red-500 to-red-600 text-white shadow-lg">
           <svg
@@ -43,7 +43,7 @@ export default function AccessDeniedPage({
         <div className="mt-8">
           <Link
             to={redirectTo}
-            className="inline-flex items-center justify-center gap-2 rounded-none bg-brand-600 px-6 py-3 text-sm font-semibold text-white shadow-md transition-all hover:bg-brand-700 hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-surface-900"
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-6 py-3 text-sm font-semibold text-white shadow-md transition-all hover:bg-brand-700 hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-surface-900"
           >
             <svg
               className="h-4 w-4"

@@ -52,7 +52,7 @@ export const SubmitButton = forwardRef(function SubmitButton(
       type={type}
       disabled={isDisabled}
       aria-busy={busy}
-      className={`group relative flex w-full items-center justify-center rounded-none bg-brand-600 px-7 py-4 text-lg font-bold text-white shadow-lg transition-all duration-300
+      className={`group relative flex w-full items-center justify-center rounded-xl bg-brand-600 px-7 py-4 text-lg font-bold text-white shadow-lg transition-all duration-300
         hover:bg-brand-700 hover:shadow-brand-500/25 hover:-translate-y-0.5
         active:translate-y-0 active:scale-[0.98]
         focus:outline-none focus:ring-4 focus:ring-brand-500/20

@@ -78,3 +78,12 @@ export async function resetPassword(
 
   return res.data;
 }
+
+/* ---------------------------------------------------
+   Verify current password (for critical action gates)
+--------------------------------------------------- */
+
+export async function verifyCurrentPassword(password) {
+  const res = await http.post(`${AUTH_BASE}/verify-password`, { password });
+  return res.data;
+}

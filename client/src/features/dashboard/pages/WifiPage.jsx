@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
+import AnimatedPage from "../../../core/components/AnimatedPage";
 import { useTelemetry } from "../context/TelemetryContext";
 
 /* ── Helpers ── */
@@ -246,7 +247,7 @@ export default function WifiPage() {
   }, [uptime]);
 
   return (
-    <div className="animate-fade-in space-y-6">
+    <AnimatedPage>
       {/* ── Breadcrumb + Title ── */}
       <div>
         <div className="flex items-center gap-1.5 text-xs font-medium text-surface-400 mb-3">
@@ -570,6 +571,6 @@ export default function WifiPage() {
           </div>
         </>
       )}
-    </div>
+    </AnimatedPage>
   );
 }

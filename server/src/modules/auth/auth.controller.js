@@ -9,6 +9,7 @@ import {
   requestPasswordResetOtp,
   resetPassword,
   verifyAdminLoginOtp,
+  verifyCurrentPassword,
   verifyPasswordResetOtp,
 } from "./auth.service.js";
 
@@ -36,6 +37,39 @@ function isSmtpConfigured() {
 /* =====================================================
    Authentication
 ===================================================== */
+
+/**
+ * POST /api/v1/auth/login
+ */
+/**
+ * POST /api/v1/auth/verify-password
+ * Verify the current (authenticated) user's password.
+ * Used before destructive / critical actions on the client.
+ */
+export const postVerifyPassword = asyncHandler(async (req, res) => {
+  const { password } = req.body;
+
+  if (!password) {
+    return res.status(400).json({
+      success: false,
+      message: "Password is required",
+    });
+  }
+
+  const result = await verifyCurrentPassword({
+    userId: req.user.id,
+    password,
+  });
+
+  if (!result.ok) {
+    return res.status(result.status ?? 401).json({
+      success: false,
+      message: result.message ?? "Invalid password",
+    });
+  }
+
+  return res.status(200).json({ success: true, message: "Password verified" });
+});
 
 /**
  * POST /api/v1/auth/login

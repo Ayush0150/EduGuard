@@ -7,6 +7,7 @@
 
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import AnimatedPage from "../../../core/components/AnimatedPage";
 
 import { toast } from "../../../core/utils/toastEmitter";
 import {
@@ -79,7 +80,7 @@ export default function CreateUser() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl animate-fade-in py-6">
+    <AnimatedPage className="mx-auto max-w-3xl py-6">
       <Link
         to="/admin"
         className="group mb-8 inline-flex items-center gap-2 text-sm font-semibold text-surface-500 transition-colors hover:text-brand-600"
@@ -100,7 +101,7 @@ export default function CreateUser() {
         Back
       </Link>
 
-      <div className="overflow-hidden rounded-none border border-surface-200 bg-white shadow-soft dark:border-surface-800 dark:bg-surface-900">
+      <div className="overflow-hidden rounded-2xl border border-surface-200 bg-white shadow-soft dark:border-surface-800 dark:bg-surface-900">
         <header className="border-b border-surface-100 p-8 dark:border-surface-800">
           <h1 className="text-2xl font-extrabold text-surface-900 dark:text-white">
             Create user
@@ -154,7 +155,7 @@ export default function CreateUser() {
                 name="role"
                 value={form.role}
                 onChange={updateField}
-                className="w-full rounded-none border border-surface-200 bg-surface-50 px-4 py-4 text-base text-surface-900 transition-all focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/10 dark:border-surface-800 dark:bg-surface-950/50 dark:text-white"
+                className="w-full rounded-xl border border-surface-200 bg-surface-50 px-4 py-4 text-base text-surface-900 transition-all focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/10 dark:border-surface-800 dark:bg-surface-950/50 dark:text-white"
                 required
               >
                 <option value="USER">Standard user</option>
@@ -172,13 +173,13 @@ export default function CreateUser() {
 
             <Link
               to="/admin"
-              className="inline-flex items-center justify-center rounded-none border border-surface-200 px-8 py-4 text-base font-semibold text-surface-600 transition-all hover:bg-surface-50 dark:border-surface-800 dark:text-surface-400 dark:hover:bg-surface-800/50"
+              className="inline-flex items-center justify-center rounded-xl border border-surface-200 px-8 py-4 text-base font-semibold text-surface-600 transition-all hover:bg-surface-50 dark:border-surface-800 dark:text-surface-400 dark:hover:bg-surface-800/50"
             >
               Cancel
             </Link>
           </div>
         </form>
       </div>
-    </div>
+    </AnimatedPage>
   );
 }

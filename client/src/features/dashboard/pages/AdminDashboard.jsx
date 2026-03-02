@@ -7,6 +7,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { getAuthSession } from "../../../core/auth/tokenStorage";
+import AnimatedPage from "../../../core/components/AnimatedPage";
+import { SkeletonRow } from "../../../core/components/Skeleton";
 import { toast } from "../../../core/utils/toastEmitter";
 import {
   deleteUser,
@@ -64,7 +66,7 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="animate-fade-in space-y-6">
+    <AnimatedPage>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-black tracking-tight text-surface-900 dark:text-white">
@@ -76,7 +78,7 @@ export default function AdminDashboard() {
         </div>
         <Link
           to="/admin/users/create"
-          className="inline-flex items-center justify-center gap-2 rounded-none bg-brand-600 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-brand-500/20 transition-all hover:bg-brand-700 hover:-translate-y-0.5"
+          className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-brand-500/20 transition-all hover:bg-brand-700 hover:-translate-y-0.5"
         >
           <svg
             className="h-5 w-5"
@@ -98,48 +100,64 @@ export default function AdminDashboard() {
       {error && (
         <div
           role="alert"
-          className="rounded-none border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-300"
+          className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-300"
         >
           {error}
         </div>
       )}
 
-      <div className="rounded-none border border-surface-200 bg-white p-2 dark:border-surface-800 dark:bg-surface-900 shadow-soft">
+      <div className="overflow-hidden rounded-2xl border border-surface-200 bg-white dark:border-surface-800 dark:bg-surface-900 shadow-soft">
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead>
-              <tr className="border-b border-surface-100 dark:border-surface-800">
-                <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-surface-400">
+              <tr className="border-b border-surface-100 bg-surface-50/80 dark:border-surface-800 dark:bg-surface-800/50">
+                <th className="px-6 py-3.5 text-[10px] font-bold uppercase tracking-wider text-surface-400">
                   User
                 </th>
-                <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-surface-400">
+                <th className="px-6 py-3.5 text-[10px] font-bold uppercase tracking-wider text-surface-400">
                   Role
                 </th>
-                <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-surface-400">
+                <th className="px-6 py-3.5 text-[10px] font-bold uppercase tracking-wider text-surface-400">
                   Status
                 </th>
-                <th className="px-6 py-4 text-right text-xs font-bold uppercase tracking-wider text-surface-400">
+                <th className="px-6 py-3.5 text-right text-[10px] font-bold uppercase tracking-wider text-surface-400">
                   Actions
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-surface-50 dark:divide-surface-800/50">
+            <tbody className="divide-y divide-surface-100 dark:divide-surface-800/50">
               {loading ? (
-                <tr>
-                  <td
-                    colSpan="4"
-                    className="py-20 text-center text-surface-400 font-medium"
-                  >
-                    Loading...
-                  </td>
-                </tr>
+                <>
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <SkeletonRow key={i} cols={4} />
+                  ))}
+                </>
               ) : users.length === 0 ? (
                 <tr>
-                  <td
-                    colSpan="4"
-                    className="py-20 text-center text-surface-400"
-                  >
-                    No users yet.
+                  <td colSpan="4" className="py-16 text-center">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-surface-100 dark:bg-surface-800">
+                        <svg
+                          className="h-6 w-6 text-surface-400"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={1.5}
+                            d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"
+                          />
+                        </svg>
+                      </div>
+                      <p className="text-sm font-semibold text-surface-500">
+                        No users yet
+                      </p>
+                      <p className="text-xs text-surface-400">
+                        Add your first user to get started
+                      </p>
+                    </div>
                   </td>
                 </tr>
               ) : (
@@ -150,7 +168,7 @@ export default function AdminDashboard() {
                   >
                     <td className="px-6 py-5">
                       <div className="flex items-center gap-4">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-none bg-brand-50 text-sm font-bold text-brand-700 dark:bg-brand-900/20 dark:text-brand-400">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-50 text-sm font-bold text-brand-700 dark:bg-brand-900/20 dark:text-brand-400">
                           {u.username.charAt(0).toUpperCase()}
                         </div>
                         <div>
@@ -162,7 +180,7 @@ export default function AdminDashboard() {
                       </div>
                     </td>
                     <td className="px-6 py-5">
-                      <span className="inline-flex items-center rounded-none bg-surface-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-surface-600 dark:bg-surface-800 dark:text-surface-400">
+                      <span className="inline-flex items-center rounded-full bg-surface-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-surface-600 dark:bg-surface-800 dark:text-surface-400">
                         {u.role}
                       </span>
                     </td>
@@ -177,12 +195,12 @@ export default function AdminDashboard() {
                       </span>
                     </td>
                     <td className="px-6 py-5 text-right">
-                      <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex items-center justify-end gap-1">
                         {u.email !== currentUser?.email && (
                           <>
                             <Link
                               to={`/admin/users/${u.id}`}
-                              className="rounded-none p-2 text-surface-400 transition-colors hover:bg-surface-100 hover:text-surface-700 dark:hover:bg-surface-800"
+                              className="rounded-lg p-2 text-surface-400 transition-colors hover:bg-surface-100 hover:text-surface-700 dark:hover:bg-surface-800"
                               title="Edit User"
                             >
                               <svg
@@ -208,7 +226,7 @@ export default function AdminDashboard() {
                                   u.email
                                 )
                               }
-                              className="rounded-none p-2 text-surface-400 transition-colors hover:bg-brand-50 hover:text-brand-600 dark:hover:bg-brand-900/20"
+                              className="rounded-lg p-2 text-surface-400 transition-colors hover:bg-brand-50 hover:text-brand-600 dark:hover:bg-brand-900/20"
                               title={
                                 u.isActive
                                   ? "Suspend Account"
@@ -233,7 +251,7 @@ export default function AdminDashboard() {
                               onClick={() =>
                                 handleDelete(u.id, u.username, u.email)
                               }
-                              className="rounded-none p-2 text-surface-400 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
+                              className="rounded-lg p-2 text-surface-400 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
                               title="Delete User"
                             >
                               <svg
@@ -261,6 +279,6 @@ export default function AdminDashboard() {
           </table>
         </div>
       </div>
-    </div>
+    </AnimatedPage>
   );
 }

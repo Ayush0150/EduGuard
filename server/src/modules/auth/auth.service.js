@@ -837,3 +837,27 @@ export async function resetPassword({
 
   return { ok: true };
 }
+
+/* =====================================================
+   Verify Current Password
+===================================================== */
+
+/**
+ * Verify the authenticated user's current password.
+ * Used as a gate before destructive / critical actions.
+ */
+export async function verifyCurrentPassword({ userId, password }) {
+  const user = await User.findById(userId).select("+passwordHash");
+
+  if (!user || !user.isActive) {
+    return { ok: false, status: 401, message: "User not found or inactive." };
+  }
+
+  const valid = await verifyPassword(password, user.passwordHash);
+
+  if (!valid) {
+    return { ok: false, status: 401, message: "Incorrect password." };
+  }
+
+  return { ok: true };
+}

@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import AnimatedPage from "../../../core/components/AnimatedPage";
 import { useTelemetry } from "../context/TelemetryContext";
 
 /* ── Helpers ── */
@@ -223,7 +224,7 @@ function InfoRow({ label, value, mono = false, changed = false }) {
 /* ═══════════════════════════════════════════════════════════════ */
 
 export default function GsmPage() {
-  const { gsm, wsStatus } = useTelemetry();
+  const { gsm, wsStatus, telemetryFresh } = useTelemetry();
   const d = useMemo(() => parseToObject(gsm), [gsm]);
   const empty = Object.keys(d).length === 0;
   const ready = d.gsmReady === "true";
@@ -236,33 +237,47 @@ export default function GsmPage() {
   const [changedKeys, setChangedKeys] = useState(new Set());
   const prevDataRef = useRef({});
   const prevGsmRef = useRef("");
+  const flashTimerRef = useRef(null);
+  const changedTimerRef = useRef(null);
 
-  // Detect changes and flash
+  // Clean up timers on unmount
   useEffect(() => {
-    if (!gsm || gsm === prevGsmRef.current) return;
-    prevGsmRef.current = gsm;
-
-    const now = Date.now();
-    setLastUpdated(now);
-    setUpdateCount((c) => c + 1);
-    setIsFlashing(true);
-
-    // Detect which fields changed
-    const newData = parseToObject(gsm);
-    const prev = prevDataRef.current;
-    const changed = new Set();
-    for (const key of Object.keys(newData)) {
-      if (prev[key] !== newData[key]) changed.add(key);
-    }
-    setChangedKeys(changed);
-    prevDataRef.current = newData;
-
-    const flashTimer = setTimeout(() => setIsFlashing(false), 1200);
-    const changedTimer = setTimeout(() => setChangedKeys(new Set()), 2500);
     return () => {
-      clearTimeout(flashTimer);
-      clearTimeout(changedTimer);
+      clearTimeout(flashTimerRef.current);
+      clearTimeout(changedTimerRef.current);
     };
+  }, []);
+
+  // Detect gsm changes via setTimeout (avoids sync setState-in-effect lint)
+  useEffect(() => {
+    if (!gsm) return;
+    // setTimeout makes the setState calls asynchronous relative to the effect
+    const id = setTimeout(() => {
+      if (gsm === prevGsmRef.current) return;
+      prevGsmRef.current = gsm;
+
+      setLastUpdated(Date.now());
+      setUpdateCount((c) => c + 1);
+      setIsFlashing(true);
+
+      const newData = parseToObject(gsm);
+      const prev = prevDataRef.current;
+      const changed = new Set();
+      for (const key of Object.keys(newData)) {
+        if (prev[key] !== newData[key]) changed.add(key);
+      }
+      setChangedKeys(changed);
+      prevDataRef.current = newData;
+
+      clearTimeout(flashTimerRef.current);
+      flashTimerRef.current = setTimeout(() => setIsFlashing(false), 1200);
+      clearTimeout(changedTimerRef.current);
+      changedTimerRef.current = setTimeout(
+        () => setChangedKeys(new Set()),
+        2500
+      );
+    }, 0);
+    return () => clearTimeout(id);
   }, [gsm]);
 
   // Live "time ago" counter + staleness flag
@@ -278,7 +293,9 @@ export default function GsmPage() {
     return () => clearInterval(interval);
   }, [lastUpdated]);
 
-  const isLive = wsStatus === "connected" && !isStale && !!lastUpdated;
+  /* isLive: WS connected AND device actually sending data AND GSM data is fresh */
+  const isLive =
+    wsStatus === "connected" && telemetryFresh && !isStale && !!lastUpdated;
 
   const parseCounter = (value) => {
     const n = Number.parseInt(String(value ?? "").trim(), 10);
@@ -353,7 +370,7 @@ export default function GsmPage() {
   }[sim.color];
 
   return (
-    <div className="animate-fade-in space-y-6">
+    <AnimatedPage>
       {/* ── Breadcrumb + Title ── */}
       <div>
         <div className="mb-3 flex items-center gap-1.5 text-xs font-medium text-surface-400">
@@ -939,6 +956,6 @@ export default function GsmPage() {
           </div>
         </>
       )}
-    </div>
+    </AnimatedPage>
   );
 }

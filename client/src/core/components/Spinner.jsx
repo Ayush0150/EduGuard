@@ -43,10 +43,16 @@ export function Spinner({ size = "md", className = "" }) {
  */
 export function PageLoader({ message = "Loading..." }) {
   return (
-    <div className="flex h-screen items-center justify-center bg-slate-50 dark:bg-slate-950">
-      <div className="text-center">
-        <Spinner size="lg" className="mx-auto mb-4 text-indigo-600" />
-        <p className="text-sm font-medium text-slate-600 dark:text-slate-400">
+    <div className="flex h-screen items-center justify-center bg-surface-50 dark:bg-surface-950">
+      <div className="animate-scale-in text-center">
+        <div className="relative mx-auto mb-5 h-12 w-12">
+          <Spinner size="lg" className="text-brand-600 dark:text-brand-400" />
+          <div className="absolute inset-0 animate-ping rounded-full bg-brand-500/10" />
+        </div>
+        <p
+          className="animate-fade-in-up text-sm font-semibold text-surface-500 dark:text-surface-400"
+          style={{ animationDelay: "200ms", animationFillMode: "both" }}
+        >
           {message}
         </p>
       </div>
@@ -59,9 +65,9 @@ export function PageLoader({ message = "Loading..." }) {
  */
 export function InlineLoader({ message = "Loading..." }) {
   return (
-    <div className="flex items-center justify-center gap-2 py-8">
-      <Spinner size="sm" className="text-indigo-600" />
-      <span className="text-sm text-slate-600 dark:text-slate-400">
+    <div className="flex items-center justify-center gap-2.5 py-8 animate-fade-in">
+      <Spinner size="sm" className="text-brand-600 dark:text-brand-400" />
+      <span className="text-sm font-medium text-surface-500 dark:text-surface-400">
         {message}
       </span>
     </div>

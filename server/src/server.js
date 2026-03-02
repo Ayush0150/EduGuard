@@ -182,8 +182,10 @@ async function bootstrap() {
         case "control": {
           const deviceSocket = devices.get(data.device);
           if (deviceSocket && deviceSocket.readyState === 1) {
-            sendJson(deviceSocket, {
-              type: "control",
+            // Send RAW command string — ESP32 expects plain text, not JSON
+            deviceSocket.send(data.command);
+            logger.info("Control sent to device", {
+              device: data.device,
               command: data.command,
             });
 
@@ -195,6 +197,10 @@ async function bootstrap() {
               timestamp: Date.now(),
             });
           } else {
+            logger.warn("Control failed — device offline", {
+              device: data.device,
+              command: data.command,
+            });
             sendJson(ws, {
               type: "control_status",
               device: data.device,
@@ -211,7 +217,7 @@ async function bootstrap() {
           broadcastDashboards(wss, {
             type: "control_ack",
             device: data.device,
-            command: data.command,
+            command: data.command || data.payload,
             status: "executed",
             timestamp: Date.now(),
           });

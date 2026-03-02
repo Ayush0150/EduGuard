@@ -15,7 +15,7 @@
 import { forwardRef } from "react";
 
 const BASE_INPUT =
-  "mt-2 w-full rounded-none border px-5 py-4 text-base leading-relaxed transition-all duration-200 bg-surface-50 text-surface-900 placeholder:text-surface-400 focus:outline-none focus:ring-4 focus:ring-brand-500/10 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-surface-950/50 dark:text-white dark:placeholder:text-surface-600";
+  "mt-2 w-full rounded-xl border px-5 py-4 text-base leading-relaxed transition-all duration-200 bg-surface-50 text-surface-900 placeholder:text-surface-400 focus:outline-none focus:ring-4 focus:ring-brand-500/10 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-surface-950/50 dark:text-white dark:placeholder:text-surface-600";
 
 const NORMAL_INPUT =
   "border-surface-200 hover:border-surface-300 focus:border-brand-500 dark:border-surface-800 dark:hover:border-surface-700 dark:focus:border-brand-500";

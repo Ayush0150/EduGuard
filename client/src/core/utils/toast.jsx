@@ -15,14 +15,10 @@ const TOAST_DURATION = 5000;
 --------------------------------------------------- */
 
 const toastStyles = {
-  success:
-    "border-green-600/30 bg-green-600 text-white dark:bg-green-700",
-  error:
-    "border-red-600/30 bg-red-600 text-white dark:bg-red-700",
-  info:
-    "border-brand-600/30 bg-brand-600 text-white dark:bg-brand-700",
-  warning:
-    "border-amber-600/30 bg-amber-600 text-white dark:bg-amber-700",
+  success: "border-green-600/30 bg-green-600 text-white dark:bg-green-700",
+  error: "border-red-600/30 bg-red-600 text-white dark:bg-red-700",
+  info: "border-brand-600/30 bg-brand-600 text-white dark:bg-brand-700",
+  warning: "border-amber-600/30 bg-amber-600 text-white dark:bg-amber-700",
 };
 
 const toastIcons = {
@@ -120,7 +116,7 @@ export function ToastContainer() {
           <div
             key={toast.id}
             role="alert"
-            className={`pointer-events-auto min-w-[320px] rounded-none border px-4 py-3.5 shadow-soft backdrop-blur-sm animate-slide-in-right ${style}`}
+            className={`pointer-events-auto min-w-[320px] rounded-xl border px-4 py-3.5 shadow-soft backdrop-blur-sm animate-slide-in-right ${style}`}
           >
             <div className="flex items-start gap-3">
               <span className="mt-0.5 flex-shrink-0">{icon}</span>

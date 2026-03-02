@@ -20,10 +20,6 @@ const eventSchema = new mongoose.Schema(
         "teacherAbsent",
         "teacherPresent",
         "periodChange",
-        "systemOnline",
-        "systemOffline",
-        "wsConnected",
-        "wsDisconnected",
       ],
       index: true,
     },
@@ -32,7 +28,7 @@ const eventSchema = new mongoose.Schema(
     category: {
       type: String,
       required: true,
-      enum: ["alert", "attendance", "system"],
+      enum: ["alert", "attendance"],
       index: true,
     },
 

@@ -37,14 +37,15 @@ function applyTheme(theme) {
 
 function SunIcon() {
   return (
-    <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
+    <svg
+      viewBox="0 0 24 24"
+      className="h-3.5 w-3.5"
+      fill="none"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="5" fill="currentColor" opacity="0.9" />
       <path
-        d="M12 18a6 6 0 1 0 0-12 6 6 0 0 0 0 12Z"
-        stroke="currentColor"
-        strokeWidth="2"
-      />
-      <path
-        d="M12 2v2M12 20v2M4 12H2M22 12h-2M5.6 5.6 4.2 4.2M19.8 19.8l-1.4-1.4M18.4 5.6l1.4-1.4M4.2 19.8l1.4-1.4"
+        d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"
         stroke="currentColor"
         strokeWidth="2"
         strokeLinecap="round"
@@ -55,12 +56,16 @@ function SunIcon() {
 
 function MoonIcon() {
   return (
-    <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
+    <svg
+      viewBox="0 0 24 24"
+      className="h-3.5 w-3.5"
+      fill="none"
+      aria-hidden="true"
+    >
       <path
-        d="M21 14.5A8.5 8.5 0 0 1 9.5 3a6.5 6.5 0 1 0 11.5 11.5Z"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinejoin="round"
+        d="M21.752 15.002A9.718 9.718 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 8.002-4.248Z"
+        fill="currentColor"
+        opacity="0.9"
       />
     </svg>
   );
@@ -102,27 +107,48 @@ export default function ThemeToggle({ className = "" }) {
       onClick={toggleTheme}
       aria-pressed={isDark}
       aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
-      className={`relative inline-flex h-9 w-16 items-center rounded-none border transition-colors
-        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2
+      className={`group relative inline-flex h-8 w-[3.75rem] items-center rounded-full transition-all duration-300
+        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50 focus-visible:ring-offset-2
         focus-visible:ring-offset-white dark:focus-visible:ring-offset-surface-900
         ${
           isDark
-            ? "border-surface-800 bg-surface-900"
-            : "border-surface-200 bg-white"
+            ? "bg-gradient-to-r from-indigo-950 via-surface-900 to-surface-800 shadow-inner shadow-black/40"
+            : "bg-gradient-to-r from-sky-100 via-blue-50 to-amber-50 shadow-inner shadow-surface-200/60"
         }
         ${className}`}
     >
       <span className="sr-only">Toggle theme</span>
 
+      {/* Background icons (faded) */}
       <span
-        className={`pointer-events-none inline-flex h-7 w-7 items-center justify-center border transition-transform duration-200
+        className={`absolute left-2 transition-opacity duration-300 ${
+          isDark ? "opacity-40 text-amber-400" : "opacity-0"
+        }`}
+      >
+        <SunIcon />
+      </span>
+      <span
+        className={`absolute right-2 transition-opacity duration-300 ${
+          isDark ? "opacity-0" : "opacity-30 text-indigo-400"
+        }`}
+      >
+        <MoonIcon />
+      </span>
+
+      {/* Thumb */}
+      <span
+        className={`pointer-events-none relative z-10 inline-flex h-6 w-6 items-center justify-center rounded-full shadow-lg transition-all duration-300 ease-[cubic-bezier(0.68,-0.2,0.27,1.2)]
           ${
             isDark
-              ? "translate-x-8 border-surface-200 bg-white text-surface-900"
-              : "translate-x-1 border-surface-900 bg-surface-900 text-white"
+              ? "translate-x-[1.875rem] bg-gradient-to-br from-indigo-400 to-violet-500 text-white shadow-indigo-500/30"
+              : "translate-x-1 bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-amber-500/30"
           }`}
       >
-        {isDark ? <MoonIcon /> : <SunIcon />}
+        <span
+          className={`transition-transform duration-300 ${isDark ? "rotate-0" : "rotate-90"}`}
+        >
+          {isDark ? <MoonIcon /> : <SunIcon />}
+        </span>
       </span>
     </button>
   );

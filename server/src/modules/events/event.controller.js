@@ -1,6 +1,11 @@
 import { asyncHandler } from "../../core/utils/asyncHandler.js";
 import { sendSuccess } from "../../core/utils/response.js";
-import { getEvents, getEventStats, saveEvent } from "./event.service.js";
+import {
+  getEvents,
+  getEventStats,
+  purgeAllEvents,
+  saveEvent,
+} from "./event.service.js";
 
 /**
  * POST /api/v1/events
@@ -47,4 +52,17 @@ export const listEvents = asyncHandler(async (req, res) => {
 export const eventStats = asyncHandler(async (req, res) => {
   const result = await getEventStats(req.query);
   return sendSuccess(res, { data: result.data });
+});
+
+/**
+ * DELETE /api/v1/events
+ * Purge all events from the database.
+ * Requires authentication (password verification done client-side before calling).
+ */
+export const deleteAllEvents = asyncHandler(async (_req, res) => {
+  const result = await purgeAllEvents();
+  return sendSuccess(res, {
+    message: `Deleted ${result.deleted} events`,
+    data: { deleted: result.deleted },
+  });
 });

@@ -22,6 +22,7 @@ import {
   postRequestOtp,
   postResetPassword,
   postVerifyOtp,
+  postVerifyPassword,
 } from "./auth.controller.js";
 
 import {
@@ -152,3 +153,5 @@ authRouter.post(
 ===================================================== */
 
 authRouter.get("/me", requireAuth, getMe);
+
+authRouter.post("/verify-password", requireAuth, postVerifyPassword);

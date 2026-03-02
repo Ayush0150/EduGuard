@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import AnimatedPage from "../../../core/components/AnimatedPage";
 import { toast } from "../../../core/utils/toastEmitter";
 import {
   validateEmail,
@@ -115,7 +116,7 @@ export default function EditUser() {
   }
 
   return (
-    <div className="animate-fade-in mx-auto max-w-3xl py-4">
+    <AnimatedPage className="mx-auto max-w-3xl py-4">
       <Link
         to="/admin"
         className="group mb-8 inline-flex items-center gap-2 text-sm font-bold text-surface-500 hover:text-brand-600 transition-colors"
@@ -136,7 +137,7 @@ export default function EditUser() {
         Back
       </Link>
 
-      <div className="overflow-hidden rounded-none border border-surface-200 bg-white shadow-soft dark:border-surface-800 dark:bg-surface-900">
+      <div className="overflow-hidden rounded-2xl border border-surface-200 bg-white shadow-soft dark:border-surface-800 dark:bg-surface-900">
         <header className="border-b border-surface-100 p-8 dark:border-surface-800">
           <h1 className="text-2xl font-black text-surface-900 dark:text-white">
             Edit user
@@ -172,7 +173,7 @@ export default function EditUser() {
                 name="role"
                 value={form.role}
                 onChange={updateField}
-                className="mt-2 w-full rounded-none border border-surface-200 bg-surface-50 px-4 py-3.5 text-base text-surface-900 transition-all focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/10 dark:border-surface-800 dark:bg-surface-950/50 dark:text-white"
+                className="mt-2 w-full rounded-xl border border-surface-200 bg-surface-50 px-4 py-3.5 text-base text-surface-900 transition-all focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/10 dark:border-surface-800 dark:bg-surface-950/50 dark:text-white"
               >
                 <option value="USER">Standard User</option>
                 <option value="SECURITY">Security Officer</option>
@@ -187,7 +188,7 @@ export default function EditUser() {
                 name="isActive"
                 checked={form.isActive}
                 onChange={updateField}
-                className="h-4.5 w-4.5 rounded-none border-surface-300 bg-surface-50 text-brand-600 focus:ring-brand-500/20 dark:border-surface-700 dark:bg-surface-950"
+                className="h-4.5 w-4.5 rounded border-surface-300 bg-surface-50 text-brand-600 focus:ring-brand-500/20 dark:border-surface-700 dark:bg-surface-950"
               />
               <span className="text-sm font-semibold text-surface-700 dark:text-surface-300">
                 Active
@@ -205,13 +206,13 @@ export default function EditUser() {
             </SubmitButton>
             <Link
               to="/admin"
-              className="inline-flex items-center justify-center rounded-none border border-surface-200 px-8 py-4 text-base font-bold text-surface-600 transition-all hover:bg-surface-50 dark:border-surface-800 dark:text-surface-400 dark:hover:bg-surface-800/50"
+              className="inline-flex items-center justify-center rounded-xl border border-surface-200 px-8 py-4 text-base font-bold text-surface-600 transition-all hover:bg-surface-50 dark:border-surface-800 dark:text-surface-400 dark:hover:bg-surface-800/50"
             >
               Cancel
             </Link>
           </div>
         </form>
       </div>
-    </div>
+    </AnimatedPage>
   );
 }
