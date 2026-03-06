@@ -13,7 +13,6 @@ import {
   Hash,
   MessageSquare,
   Phone,
-  PhoneCall,
   Power,
   RotateCcw,
   Save,
@@ -515,11 +514,6 @@ export default function SettingsPage() {
     initCfg.callEnabled !== undefined ? initCfg.callEnabled === "true" : true
   );
 
-  // 10. Call Duration
-  const [callDuration, setCallDuration] = useState(
-    Number(initCfg.callDuration) || 5
-  );
-
   // 11. Emergency Buzzer Duration
   const [emBuzzerDuration, setEmBuzzerDuration] = useState(
     Number(initCfg.emBuzzerDuration) || 5
@@ -576,7 +570,6 @@ export default function SettingsPage() {
     if (c.phoneAC) setPhoneAC(c.phoneAC);
     if (c.periodDuration) setPeriodDuration(Number(c.periodDuration) || 60);
     if (c.graceDuration) setTeacherGrace(Number(c.graceDuration) || 10);
-    if (c.callDuration) setCallDuration(Number(c.callDuration) || 5);
     if (c.emBuzzerDuration)
       setEmBuzzerDuration(Number(c.emBuzzerDuration) || 5);
     if (c.gasThreshold) setWashroomThreshold(Number(c.gasThreshold) || 2800);
@@ -1175,45 +1168,6 @@ export default function SettingsPage() {
                   "emBuzz",
                   `SET_EM_BUZZER_DURATION:${emBuzzerDuration}`
                 )
-              }
-            />
-          </div>
-        </SettingRow>
-      </SectionCard>
-
-      {/* ════════════════════════════════════════════════════════
-         6️⃣ CALL SETTINGS
-         ════════════════════════════════════════════════════════ */}
-      <SectionCard
-        icon={PhoneCall}
-        title="Call Settings"
-        description="Emergency missed call behavior"
-        accent="bg-teal-500"
-      >
-        <SettingRow
-          label="Call Duration"
-          description="How long the missed call rings before auto-hangup (1–60 seconds)"
-        >
-          <div className="flex items-center gap-2">
-            <NumberInput
-              value={callDuration}
-              onChange={setCallDuration}
-              min={1}
-              max={60}
-              unit="sec"
-              disabled={!connected || !missedCallEnabled}
-            />
-            <ActionButton
-              icon={Save}
-              label={saveLabel(saveStatus.callDur)}
-              small
-              disabled={
-                !connected ||
-                !missedCallEnabled ||
-                saveStatus.callDur === "saving"
-              }
-              onClick={() =>
-                handleSave("callDur", `SET_CALL_DURATION:${callDuration}`)
               }
             />
           </div>

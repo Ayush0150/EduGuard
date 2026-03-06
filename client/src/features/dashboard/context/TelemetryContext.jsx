@@ -168,7 +168,7 @@ export function TelemetryProvider({ children }) {
     return `ws://${host}:8080`;
   }, []);
 
-  /* Throttle localStorage writes to at most once every 5 s */
+  /* Throttle localStorage writes for high-frequency telemetry (5 s) */
   useEffect(() => {
     if (cacheTimerRef.current) return; // already scheduled
     cacheTimerRef.current = setTimeout(() => {
@@ -176,6 +176,13 @@ export function TelemetryProvider({ children }) {
       cacheTimerRef.current = null;
     }, 5000);
   }, [arduino, wifi, gsm, esp, device, config, smsTemplates]);
+
+  /* Flush config & smsTemplates to localStorage immediately so a page
+     refresh right after saving a setting always shows the new value. */
+  useEffect(() => {
+    const prev = loadCached() || {};
+    saveCached({ ...prev, config, smsTemplates });
+  }, [config, smsTemplates]); // only fires when settings actually change
 
   /* Flush pending cache on unmount */
   useEffect(() => {

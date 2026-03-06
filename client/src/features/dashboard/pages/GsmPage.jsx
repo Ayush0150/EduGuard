@@ -68,6 +68,12 @@ function safeGsmValue(value, fallback = "—") {
   return isInvalidGsmValue(value) ? fallback : String(value).trim();
 }
 
+function normalizeCarrierName(name) {
+  const value = String(name || "").trim();
+  if (/^air\s*tel$/i.test(value)) return "Airtel";
+  return value;
+}
+
 function parseRegistration(raw) {
   if (!raw || raw === "—")
     return { label: "Unknown", ok: false, roaming: false };
@@ -304,7 +310,9 @@ export default function GsmPage() {
   const smsToday = parseCounter(d.smsToday);
   const smsMonth = parseCounter(d.smsMonth);
 
-  const operator = safeGsmValue(d.operator, "Unknown Carrier");
+  const operator = normalizeCarrierName(
+    safeGsmValue(d.operator, "Unknown Carrier")
+  );
   const network = safeGsmValue(d.net, null);
   const imei = safeGsmValue(d.imei, null);
   const iccid = safeGsmValue(d.iccid, null);
