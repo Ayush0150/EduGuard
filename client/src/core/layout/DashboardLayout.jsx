@@ -6,6 +6,7 @@
  */
 
 import { Outlet } from "react-router-dom";
+import EduGuardAssistant from "../../features/dashboard/components/EduGuardAssistant";
 import { useSessionMonitor } from "../auth/useSessionMonitor";
 import DashboardNavbar from "./DashboardNavbar";
 import Footer from "./Footer";
@@ -27,6 +28,7 @@ export default function DashboardLayout() {
       </div>
 
       <Footer />
+      <EduGuardAssistant />
     </div>
   );
 }

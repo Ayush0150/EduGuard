@@ -8,6 +8,7 @@
 import {
   Activity,
   BarChart3,
+  BookOpen,
   ChevronDown,
   Info,
   LayoutDashboard,
@@ -44,6 +45,7 @@ const USER_NAV = [
     ],
   },
   { to: "/dashboard/reports", label: "Reports", icon: BarChart3 },
+  { to: "/dashboard/subjects", label: "Subjects", icon: BookOpen },
   { to: "/dashboard/settings", label: "Settings", icon: Settings },
   { to: "/dashboard/about", label: "About Us", icon: Info },
 ];

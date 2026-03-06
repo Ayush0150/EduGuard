@@ -554,7 +554,7 @@ const EVENT_DEFS = {
   teacherPresent: {
     icon: CheckCircle2,
     label: "Teacher Arrived",
-    detail: "Attendance confirmed via PIR or manual button",
+    detail: "Attendance confirmed via sensor or manual button or dashboard",
     color: "emerald",
   },
   periodChange: {

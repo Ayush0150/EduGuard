@@ -64,6 +64,10 @@ const SettingsPage = lazy(
 
 const AboutPage = lazy(() => import("./features/dashboard/pages/AboutPage"));
 
+const SubjectTrackerPage = lazy(
+  () => import("./features/dashboard/pages/SubjectTrackerPage")
+);
+
 const AdminDashboard = lazy(
   () => import("./features/dashboard/pages/AdminDashboard")
 );
@@ -178,6 +182,10 @@ export default function App() {
                 <Route path="/dashboard/reports" element={<ReportsPage />} />
                 <Route path="/dashboard/settings" element={<SettingsPage />} />
                 <Route path="/dashboard/about" element={<AboutPage />} />
+                <Route
+                  path="/dashboard/subjects"
+                  element={<SubjectTrackerPage />}
+                />
               </Route>
             </Route>
 

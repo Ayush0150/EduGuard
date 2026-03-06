@@ -28,7 +28,8 @@ const devices = new Map();
 /** @type {Map<string, object>} deviceId → last telemetry snapshot */
 const lastTelemetry = new Map();
 
-const HEARTBEAT_INTERVAL = 30_000; // 30 s ping interval
+const HEARTBEAT_INTERVAL = 10_000; // 10 s ping interval
+const DEVICE_STALE_MS = 15_000; // device silent for 15 s → considered dead
 
 /* ── helpers ─────────────────────────────────────────────── */
 
@@ -77,7 +78,19 @@ async function bootstrap() {
 
   /* ── Heartbeat (detect dead sockets) ─────────────────── */
   const heartbeatTimer = setInterval(() => {
+    const now = Date.now();
     wss.clients.forEach((ws) => {
+      /* Device staleness: if a registered device hasn't sent anything for 15 s, kill it */
+      if (
+        ws.deviceId &&
+        ws.lastMessageAt &&
+        now - ws.lastMessageAt > DEVICE_STALE_MS
+      ) {
+        devices.delete(ws.deviceId);
+        logger.info("Device stale — no data received", { device: ws.deviceId });
+        return ws.terminate();
+      }
+
       if (ws.isAlive === false) {
         if (ws.deviceId) {
           devices.delete(ws.deviceId);
@@ -137,6 +150,7 @@ async function bootstrap() {
 
           devices.set(id, ws);
           ws.deviceId = id;
+          ws.lastMessageAt = Date.now();
           logger.info("Device registered", { device: id });
 
           // Notify dashboards
@@ -152,6 +166,9 @@ async function bootstrap() {
         case "telemetry": {
           const payload = data.payload;
           const category = data.category || "arduino"; // arduino | wifi | gsm | esp
+
+          /* Update last-seen timestamp for staleness detection */
+          if (ws.deviceId) ws.lastMessageAt = Date.now();
 
           if (category === "gsm" && data.device) {
             upsertSmsCounterFromTelemetry(data.device, payload).catch(
@@ -214,6 +231,7 @@ async function bootstrap() {
 
         /* ── CONTROL ACK (device → dashboards) ──────── */
         case "control_ack": {
+          if (ws.deviceId) ws.lastMessageAt = Date.now();
           broadcastDashboards(wss, {
             type: "control_ack",
             device: data.device,

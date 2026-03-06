@@ -44,7 +44,7 @@
 /* ================ NETWORK CONFIGURATION ================ */
 const char* ssid       = "ACTFIBERNET";
 const char* password   = "ayush@16032005";
-const char* ws_host    = "192.168.0.118";
+const char* ws_host    = "192.168.0.103";
 const uint16_t ws_port = 8080;
 
 #define FW_VERSION       "6.0.0-SETTINGS"
@@ -102,7 +102,7 @@ char smsTplWashroom[161]  = "Washroom Dirty {room}";
 #define BELL_ON_TIME         150UL
 #define BELL_GAP_TIME        400UL
 #define SIREN_INTERVAL       80UL
-#define WASH_SMS_COOLDOWN    60000UL
+#define WASH_SMS_COOLDOWN    20000UL   /* 20 s gas SMS cooldown */
 
 #define WIFI_RETRY_INTERVAL  5000UL
 #define GSM_CHECK_INTERVAL   60000UL
@@ -110,15 +110,14 @@ char smsTplWashroom[161]  = "Washroom Dirty {room}";
 #define GSM_HEALTH_INTERVAL  10000UL
 #define ESP_HEALTH_INTERVAL  1000UL
 
-#define MAX_EM_SMS_RETRIES   3
-#define EM_SMS_RETRY_DELAY   3000UL
+
 
 /* ================ SENSOR CONSTANTS ================ */
-#define GAS_LOW              1400
 #define GAS_SAMPLES          10
 #define GAS_READ_INTERVAL    250UL
 #define GAS_HIGH_CONFIRM     5000UL    /* gas must stay HIGH 5 s before trigger */
 #define GAS_LOW_CONFIRM      10000UL   /* gas must stay LOW 10 s before unlatch */
+#define GAS_WARMUP_TIME      30000UL   /* 30 s warm-up after boot — ignore gas readings */
 
 /* ================ STATE OBJECTS ================ */
 RTC_DS3231 rtc;
@@ -126,6 +125,7 @@ WebSocketsClient webSocket;
 HardwareSerial sim800(1);
 
 /* ================ STATE VARIABLES ================ */
+unsigned long bootTime        = 0;
 unsigned long periodStart    = 0, lastTelemetry = 0;
 unsigned long acStart        = 0, emStart       = 0, dirtyStart  = 0, absentStart = 0;
 unsigned long bellLast       = 0, sirenLast     = 0;
@@ -133,7 +133,6 @@ unsigned long lastWiFiCheck  = 0, lastGsmRecheck = 0;
 unsigned long lastWifiHealth = 0, lastGsmHealth  = 0, lastEspHealth = 0;
 unsigned long pirHighStart   = 0, callStartTime  = 0;
 unsigned long absentCheckStart = 0;
-unsigned long emLastAttempt  = 0;
 
 unsigned long smsSentToday = 0;
 unsigned long smsSentMonth = 0;
@@ -171,7 +170,7 @@ bool inLogic = false;
 /* Alert flags */
 bool pendingAcSms  = false, pendingEmSms   = false, pendingEmCall   = false;
 bool pendingWashSms = false, pendingAbsentSms = false;
-int  emSmsRetries   = 0;   /* retry counter for emergency SMS */
+bool emSmsSent      = false;  /* latch: true once SMS sent/abandoned for this emergency press */
 
 /* Per-period SMS latches */
 bool absentLatched = false;
@@ -492,34 +491,24 @@ void processAlerts() {
 
     /* One SMS transaction per loop to avoid long GSM monopolization */
     if (pendingEmSms) {
-        /* Retry delay — don't hammer SIM800 on every loop */
-        if (emSmsRetries > 0 && (now - emLastAttempt < EM_SMS_RETRY_DELAY)) return;
+        /* Already sent for this activation — skip */
+        if (emSmsSent) {
+            pendingEmSms = false;
+            return;
+        }
 
         renderTemplate(smsTplEmergency, smsMsg, sizeof(smsMsg));
-        emLastAttempt = now;
 
         if (execSMS(smsMsg, phoneEmergency)) {
-            /* SMS sent successfully */
             markSmsSuccess();
-            pendingEmSms  = false;
-            emSmsRetries  = 0;
-            if (cfgCallEnabled && !callInProgress) {
-                pendingEmCall = true;
-            }
         } else {
-            emSmsRetries++;
-            Serial.printf("[SMS] Emergency SMS failed (attempt %d/%d)\n", emSmsRetries, MAX_EM_SMS_RETRIES);
-            if (emSmsRetries >= MAX_EM_SMS_RETRIES) {
-                Serial.println("[SMS] Emergency SMS ABANDONED after max retries");
-                pendingEmSms = false;
-                emSmsRetries = 0;
-                /* Still attempt the call even if SMS failed */
-                if (cfgCallEnabled && !callInProgress) {
-                    pendingEmCall = true;
-                }
-            }
-            /* Force a GSM re-check before next retry */
-            gsmReady = false;
+            Serial.println("[SMS] Emergency SMS failed");
+        }
+        /* Latch after single attempt — no retries, no spam */
+        pendingEmSms = false;
+        emSmsSent    = true;
+        if (cfgCallEnabled && !callInProgress) {
+            pendingEmCall = true;
         }
         return;
     }
@@ -698,7 +687,7 @@ void runClassroomLogic() {
         digitalWrite(AC_LED, LOW);
     }
 
-    /* --- Emergency Request (debounced, re-trigger allowed for retry) --- */
+    /* --- Emergency Request (debounced, one SMS per press) --- */
     if (!digitalRead(EM_BTN) && emReady && now - emDebounce > DEBOUNCE_TIME) {
         emDebounce = now;
         emReady    = false;
@@ -710,34 +699,31 @@ void runClassroomLogic() {
             digitalWrite(EM_LED, HIGH);
             pendingEmSms  = true;
             pendingEmCall = false;
-            emSmsRetries  = 0;
-            emLastAttempt = 0;
+            emSmsSent     = false;       /* Reset latch for new emergency */
             bellActive   = false;
             digitalWrite(BUZZER, LOW);       /* Stop any bell immediately */
-        } else if (!pendingEmSms) {
-            /* Re-trigger: emergency active but SMS already cleared — force retry */
-            pendingEmSms  = true;
-            pendingEmCall = false;
-            emSmsRetries  = 0;
-            emLastAttempt = 0;
-            emStart       = now;         /* Extend buzzer duration */
-            Serial.println("[EM] Re-trigger: forcing SMS retry");
         }
+        /* No re-trigger — one SMS per press, no spam */
     }
     if (digitalRead(EM_BTN)) emReady = true;
 
     if (emActive && now - emStart >= cfgEmBuzzerDuration) {
         emActive = emPulse = false;
+        emSmsSent = false;               /* Reset latch so next press can send */
         digitalWrite(EM_LED, LOW);
         digitalWrite(BUZZER, LOW);       /* Ensure buzzer stops with siren */
     }
 
-    /* --- Gas Sensor (industrial-grade: 5 s high confirm, 10 s low confirm, 60 s cooldown) --- */
+    /* --- Gas Sensor (5 s high confirm, 10 s low confirm, 20 s SMS cooldown) --- */
     static unsigned long gasHighStart = 0;
     static unsigned long gasLowStart  = 0;
+
+    /* Skip gas detection during 30 s warm-up period after boot */
+    if (now - bootTime >= GAS_WARMUP_TIME) {
+
     bool washCooldownOk = (washLastSmsAt == 0) || (now - washLastSmsAt >= WASH_SMS_COOLDOWN);
 
-    if (currentGasValue > cfgGasHigh && washCooldownOk) {
+    if (currentGasValue > cfgGasHigh) {
         gasLowStart = 0;                 /* reset low-side timer */
         if (gasHighStart == 0)
             gasHighStart = now;
@@ -745,7 +731,8 @@ void runClassroomLogic() {
             washLatched    = true;
             dirtyActive    = true;
             dirtyStart     = now;
-            pendingWashSms = true;
+            if (washCooldownOk)
+                pendingWashSms = true;   /* SMS only if cooldown elapsed */
         }
     } else {
         gasHighStart = 0;                /* gas dropped — reset high-side timer */
@@ -754,15 +741,21 @@ void runClassroomLogic() {
     if (dirtyActive && now - dirtyStart >= ACTIVE_DURATION)
         dirtyActive = false;
 
-    /* Unlatch only after gas stays LOW for 10 s continuously */
-    if (currentGasValue < GAS_LOW) {
+    /* Unlatch only after gas stays below (threshold − 300) for 10 s continuously.
+       Hysteresis: trigger at cfgGasHigh, reset at cfgGasHigh − 300 (e.g. 3000/2700). */
+    int gasResetLevel = cfgGasHigh - 300;
+    if (currentGasValue < gasResetLevel) {
         if (gasLowStart == 0)
             gasLowStart = now;
-        if (washLatched && (now - gasLowStart >= GAS_LOW_CONFIRM))
+        if (washLatched && (now - gasLowStart >= GAS_LOW_CONFIRM)) {
             washLatched = false;
+            gasHighStart = 0;            /* fully reset so next spike re-triggers */
+        }
     } else {
         gasLowStart = 0;
     }
+
+    } /* end warm-up guard */
 
     /* --- BUZZER CONTROL (direct-drive, matches proven Arduino pattern) --- */
     if (emActive) {
@@ -823,8 +816,8 @@ void sendTelemetry() {
     );
 
     snprintf(jsonBuf, sizeof(jsonBuf),
-      "{\"type\":\"telemetry\",\"device\":\"CLASSROOM-706\",\"category\":\"arduino\",\"payload\":\"%s\"}",
-      payload
+      "{\"type\":\"telemetry\",\"device\":\"CLASSROOM-%s\",\"category\":\"arduino\",\"payload\":\"%s\"}",
+      cfgClassroom, payload
     );
     webSocket.sendTXT(jsonBuf);
 }
@@ -836,8 +829,9 @@ void sendDeviceInfo() {
     if (!wsConnected || deviceInfoSent) return;
 
     snprintf(jsonBuf, sizeof(jsonBuf),
-      "{\"type\":\"telemetry\",\"device\":\"CLASSROOM-706\",\"category\":\"device\","
+      "{\"type\":\"telemetry\",\"device\":\"CLASSROOM-%s\",\"category\":\"device\","
       "\"payload\":\"firmware=%s,chip=%s,rev=%d,cores=%d,sdk=%s,mac=%s,flashMB=%u\"}",
+      cfgClassroom,
       FW_VERSION,
       ESP.getChipModel(),
       ESP.getChipRevision(),
@@ -882,8 +876,8 @@ void sendConfigSync() {
     );
 
     snprintf(jsonBuf, sizeof(jsonBuf),
-      "{\"type\":\"telemetry\",\"device\":\"CLASSROOM-706\",\"category\":\"config\",\"payload\":\"%s\"}",
-      payload
+      "{\"type\":\"telemetry\",\"device\":\"CLASSROOM-%s\",\"category\":\"config\",\"payload\":\"%s\"}",
+      cfgClassroom, payload
     );
 
     if (webSocket.sendTXT(jsonBuf)) {
@@ -908,8 +902,8 @@ void sendSmsTemplatesSync() {
 
     static char tplBuf[900];
     snprintf(tplBuf, sizeof(tplBuf),
-      "{\"type\":\"telemetry\",\"device\":\"CLASSROOM-706\",\"category\":\"smsTemplates\",\"payload\":\"%s\"}",
-      tplPayload);
+      "{\"type\":\"telemetry\",\"device\":\"CLASSROOM-%s\",\"category\":\"smsTemplates\",\"payload\":\"%s\"}",
+      cfgClassroom, tplPayload);
 
     if (webSocket.sendTXT(tplBuf)) {
         templatesSynced = true;
@@ -1024,8 +1018,9 @@ void sendWifiHealth() {
     lastWifiHealth = millis();
 
     snprintf(jsonBuf, sizeof(jsonBuf),
-      "{\"type\":\"telemetry\",\"device\":\"CLASSROOM-706\",\"category\":\"wifi\","
+      "{\"type\":\"telemetry\",\"device\":\"CLASSROOM-%s\",\"category\":\"wifi\","
       "\"payload\":\"rssi=%d,ip=%s,reconnects=%u,uptime=%lu,channel=%d,ssid=%s,mac=%s\"}",
+      cfgClassroom,
       WiFi.RSSI(),
       WiFi.localIP().toString().c_str(),
       wifiReconnects,
@@ -1206,8 +1201,9 @@ gsmHealthDone:
     strncpy(lastNet,    netMode,sizeof(lastNet) - 1);    lastNet[sizeof(lastNet) - 1] = '\0';
 
     snprintf(jsonBuf, sizeof(jsonBuf),
-      "{\"type\":\"telemetry\",\"device\":\"CLASSROOM-706\",\"category\":\"gsm\","
+      "{\"type\":\"telemetry\",\"device\":\"CLASSROOM-%s\",\"category\":\"gsm\","
             "\"payload\":\"signal=%s,operator=%s,battery=%s,reg=%s,imei=%s,iccid=%s,sim=%s,net=%s,gsmReady=%s,smsToday=%lu,smsMonth=%lu\"}",
+      cfgClassroom,
       signal, oper, batt, regStat, imei, iccid, simStat, netMode,
             gsmReady ? "true" : "false",
             smsSentToday,
@@ -1235,8 +1231,9 @@ void sendEspHealth() {
     esp_reset_reason_t reason = esp_reset_reason();
 
     snprintf(jsonBuf, sizeof(jsonBuf),
-      "{\"type\":\"telemetry\",\"device\":\"CLASSROOM-706\",\"category\":\"esp\","
+      "{\"type\":\"telemetry\",\"device\":\"CLASSROOM-%s\",\"category\":\"esp\","
             "\"payload\":\"heap=%u,minHeap=%u,cpuMHz=%u,flashKB=%u,resetReason=%d,uptime=%lu,temp=%.1f,cores=%d,rssi=%d,time=%02d:%02d:%02d\"}",
+      cfgClassroom,
       freeNow,
       minFreeHeap,
       ESP.getCpuFreqMHz(),
@@ -1282,7 +1279,9 @@ void webSocketEvent(WStype_t type, uint8_t* payload, size_t length) {
         deviceInfoSent = false;
         configSynced   = false;
         templatesSynced = false;
-        webSocket.sendTXT("{\"type\":\"register\",\"device\":\"CLASSROOM-706\"}");
+        snprintf(jsonBuf, sizeof(jsonBuf),
+          "{\"type\":\"register\",\"device\":\"CLASSROOM-%s\"}", cfgClassroom);
+        webSocket.sendTXT(jsonBuf);
     }
     else if (type == WStype_DISCONNECTED) {
         Serial.println("[WS] Disconnected");
@@ -1307,29 +1306,19 @@ void webSocketEvent(WStype_t type, uint8_t* payload, size_t length) {
             handled = true;
         }
         else if (strstr(cmd, "EMERGENCY_REQ")) {
-            if (cfgHwEnabled) {
-                if (!emActive) {
-                    /* Fresh emergency — full activation */
-                    emActive = emPulse = true;
-                    emStart  = millis();
-                    sirenLast = 0;
-                    digitalWrite(EM_LED, HIGH);
-                    pendingEmSms  = true;
-                    pendingEmCall = false;
-                    emSmsRetries  = 0;
-                    emLastAttempt = 0;
-                    bellActive = false;
-                    digitalWrite(BUZZER, LOW);
-                } else if (!pendingEmSms) {
-                    /* Re-trigger: emergency active but SMS already cleared — force retry */
-                    pendingEmSms  = true;
-                    pendingEmCall = false;
-                    emSmsRetries  = 0;
-                    emLastAttempt = 0;
-                    emStart       = millis();   /* Extend buzzer duration */
-                    Serial.println("[EM] Web re-trigger: forcing SMS retry");
-                }
+            if (cfgHwEnabled && !emActive) {
+                /* Fresh emergency — full activation */
+                emActive = emPulse = true;
+                emStart  = millis();
+                sirenLast = 0;
+                digitalWrite(EM_LED, HIGH);
+                pendingEmSms  = true;
+                pendingEmCall = false;
+                emSmsSent     = false;
+                bellActive = false;
+                digitalWrite(BUZZER, LOW);
             }
+            /* No re-trigger from WS — one SMS per activation */
             handled = true;
         }
         else if (strstr(cmd, "WASHROOM_REQUEST")) {
@@ -1622,7 +1611,7 @@ void webSocketEvent(WStype_t type, uint8_t* payload, size_t length) {
         else if (strstr(cmd, "DEVICE_FACTORY_RESET")) {
             /* Send ack BEFORE reset */
             snprintf(jsonBuf, sizeof(jsonBuf),
-              "{\"type\":\"control_ack\",\"device\":\"CLASSROOM-706\",\"payload\":\"DEVICE_FACTORY_RESET\"}");
+              "{\"type\":\"control_ack\",\"device\":\"CLASSROOM-%s\",\"payload\":\"DEVICE_FACTORY_RESET\"}", cfgClassroom);
             webSocket.sendTXT(jsonBuf);
             delay(200);
             factoryReset();
@@ -1630,7 +1619,7 @@ void webSocketEvent(WStype_t type, uint8_t* payload, size_t length) {
         }
         else if (strstr(cmd, "DEVICE_RESTART")) {
             snprintf(jsonBuf, sizeof(jsonBuf),
-              "{\"type\":\"control_ack\",\"device\":\"CLASSROOM-706\",\"payload\":\"DEVICE_RESTART\"}");
+              "{\"type\":\"control_ack\",\"device\":\"CLASSROOM-%s\",\"payload\":\"DEVICE_RESTART\"}", cfgClassroom);
             webSocket.sendTXT(jsonBuf);
             delay(200);
             Serial.println("[INFO] Dashboard-triggered restart");
@@ -1647,7 +1636,7 @@ void webSocketEvent(WStype_t type, uint8_t* payload, size_t length) {
 
         if (handled) {
             snprintf(jsonBuf, sizeof(jsonBuf),
-              "{\"type\":\"control_ack\",\"device\":\"CLASSROOM-706\",\"payload\":\"%s\"}", cmd);
+              "{\"type\":\"control_ack\",\"device\":\"CLASSROOM-%s\",\"payload\":\"%s\"}", cfgClassroom, cmd);
             webSocket.sendTXT(jsonBuf);
 
             /* Re-sync config & templates to dashboard after any setting change */
@@ -1742,6 +1731,9 @@ void setup() {
     checkGSM();
     Serial.print("[GSM] Ready: ");
     Serial.println(gsmReady ? "YES" : "NO");
+
+    /* Record boot time for sensor warm-up */
+    bootTime    = millis();
 
     /* First period */
     periodStart = millis();

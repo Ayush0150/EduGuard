@@ -13,6 +13,7 @@ import { logger } from "./core/utils/logger.js";
 
 import { adminRouter } from "./modules/admin/admin.routes.js";
 import { authRouter } from "./modules/auth/auth.routes.js";
+import { chatbotRouter } from "./modules/chatbot/chatbot.routes.js";
 import { eventRouter } from "./modules/events/event.routes.js";
 import { suggestionRouter } from "./modules/suggestions/suggestion.routes.js";
 
@@ -205,6 +206,7 @@ export function createApp() {
   app.use("/api/v1/admin", adminRouter);
   app.use("/api/v1/events", eventRouter);
   app.use("/api/v1/suggestions", suggestionRouter);
+  app.use("/api/v1/chatbot", chatbotRouter);
 
   /* =====================================================
      Error Handling (DO NOT CHANGE ORDER)

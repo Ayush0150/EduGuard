@@ -19,7 +19,8 @@ const STORAGE_KEY = "eduguard_telemetry";
 const RECONNECT_BASE = 1000;
 const RECONNECT_MAX = 16000;
 const GSM_STALE_TIMEOUT = 35_000; // 35 s — ESP32 sends GSM health every 10 s
-const TELEMETRY_STALE_MS = 5_000; // 5 s — device considered offline if no arduino telemetry
+const TELEMETRY_STALE_MS = 12_000; // 12 s — device considered offline if no arduino telemetry
+const STALE_DEBOUNCE_COUNT = 3; // require 3 consecutive stale checks before flipping UI
 
 /* ── Helpers ── */
 function parseToObject(line) {
@@ -156,6 +157,7 @@ export function TelemetryProvider({ children }) {
 
   /* ── Telemetry freshness tracking ── */
   const lastArduinoAtRef = useRef(0);
+  const staleCountRef = useRef(0); // consecutive stale ticks
   const [telemetryFresh, setTelemetryFresh] = useState(false);
 
   /* ── Device (ESP32) online state — tracks server device_status events ── */
@@ -183,11 +185,20 @@ export function TelemetryProvider({ children }) {
     };
   }, []);
 
-  /* ── Freshness watchdog: checks every 1 s whether we received telemetry recently ── */
+  /* ── Freshness watchdog: debounced — won't flicker on transient gaps ── */
   useEffect(() => {
     const id = setInterval(() => {
-      const fresh = Date.now() - lastArduinoAtRef.current < TELEMETRY_STALE_MS;
-      setTelemetryFresh(fresh);
+      const isStale =
+        Date.now() - lastArduinoAtRef.current >= TELEMETRY_STALE_MS;
+      if (isStale) {
+        staleCountRef.current += 1;
+        if (staleCountRef.current >= STALE_DEBOUNCE_COUNT) {
+          setTelemetryFresh(false);
+        }
+      } else {
+        staleCountRef.current = 0;
+        setTelemetryFresh(true);
+      }
     }, 1000);
     return () => clearInterval(id);
   }, []);
@@ -230,6 +241,8 @@ export function TelemetryProvider({ children }) {
           if (!shouldAcceptArduinoPayload(arduinoRef.current, safe, isFresh))
             return;
           lastArduinoAtRef.current = Date.now();
+          staleCountRef.current = 0;
+          setTelemetryFresh(true);
           setDeviceOnline(true);
           if (safe !== arduinoRef.current) {
             arduinoRef.current = safe;
@@ -564,6 +577,7 @@ export function TelemetryProvider({ children }) {
         pushEvent("washroom", undefined, {
           "Gas Level": a.GS ? `${a.GS} ppm` : "—",
           Room: roomLabel,
+          Period: a.P || "—",
         });
       }
       if (snap.absent && !prev.absent) {
