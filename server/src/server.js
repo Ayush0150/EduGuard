@@ -128,7 +128,7 @@ async function bootstrap() {
       });
     });
 
-    ws.on("message", (raw) => {
+    ws.on("message", async (raw) => {
       let data;
       try {
         data = JSON.parse(raw);
@@ -164,21 +164,29 @@ async function bootstrap() {
 
         /* ── TELEMETRY (ESP32 → dashboards) ──────────── */
         case "telemetry": {
-          const payload = data.payload;
+          let payload = data.payload;
           const category = data.category || "arduino"; // arduino | wifi | gsm | esp
 
           /* Update last-seen timestamp for staleness detection */
           if (ws.deviceId) ws.lastMessageAt = Date.now();
 
           if (category === "gsm" && data.device) {
-            upsertSmsCounterFromTelemetry(data.device, payload).catch(
-              (error) => {
-                logger.warn("SMS counter persistence skipped", {
-                  device: data.device,
-                  error: error.message,
-                });
+            try {
+              const result = await upsertSmsCounterFromTelemetry(
+                data.device,
+                payload
+              );
+              // Patch payload with server-authoritative counter values
+              // so dashboards always see the correct persisted totals.
+              if (result.ok && result.data) {
+                payload = patchPayloadWithAuthCounters(payload, result.data);
               }
-            );
+            } catch (error) {
+              logger.warn("SMS counter persistence skipped", {
+                device: data.device,
+                error: error.message,
+              });
+            }
           }
 
           // Cache for new clients

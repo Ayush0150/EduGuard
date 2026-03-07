@@ -321,10 +321,6 @@ export default function DashboardNavbar() {
   const navItems = isAdmin ? ADMIN_NAV : USER_NAV;
 
   useEffect(() => {
-    setMobileOpen(false);
-  }, [location.pathname]);
-
-  useEffect(() => {
     document.body.style.overflow = mobileOpen ? "hidden" : "";
     return () => {
       document.body.style.overflow = "";

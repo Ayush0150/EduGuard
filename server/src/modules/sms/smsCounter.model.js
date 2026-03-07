@@ -21,6 +21,27 @@ const smsCounterSchema = new mongoose.Schema(
       min: 0,
       default: 0,
     },
+    /* Last raw counter values received from the device (ESP32).
+       Used to compute deltas so the server stays authoritative. */
+    lastDeviceToday: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+    lastDeviceMonth: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+    /* Date strings for detecting day/month rollovers */
+    lastDailyReset: {
+      type: String,
+      default: "",
+    },
+    lastMonthlyReset: {
+      type: String,
+      default: "",
+    },
   },
   {
     timestamps: true,

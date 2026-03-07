@@ -110,23 +110,25 @@ function saveLabel(status, defaultLabel = "Save") {
 function SectionCard({ icon: Icon, title, description, accent, children }) {
   const iconBg = accent || "bg-brand-500";
   return (
-    <div className="overflow-hidden rounded-xl border border-surface-200/80 bg-white dark:border-surface-800 dark:bg-surface-900">
-      <div className="flex items-center gap-3 border-b border-surface-100 bg-surface-50/60 px-6 py-4 dark:border-surface-800 dark:bg-surface-800/30">
+    <div className="overflow-hidden rounded-2xl border border-surface-200/60 bg-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl dark:border-surface-700/50 dark:bg-surface-900/60 dark:shadow-[0_8px_30px_rgb(0,0,0,0.2)]">
+      <div className="flex items-center gap-4 border-b border-surface-100 bg-surface-50/50 px-6 py-5 dark:border-surface-800/60 dark:bg-surface-800/20">
         <div
-          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${iconBg}`}
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl shadow-inner ring-1 ring-inset ring-white/20 ${iconBg}`}
         >
-          <Icon size={15} className="text-white" />
+          <Icon size={18} className="text-white drop-shadow-sm" />
         </div>
         <div>
-          <h3 className="text-sm font-semibold text-surface-900 dark:text-white">
+          <h3 className="text-[15px] font-bold tracking-tight text-surface-900 dark:text-white">
             {title}
           </h3>
           {description && (
-            <p className="text-[11px] text-surface-400">{description}</p>
+            <p className="mt-0.5 text-[12px] font-medium text-surface-500 dark:text-surface-400">
+              {description}
+            </p>
           )}
         </div>
       </div>
-      <div className="divide-y divide-surface-100 dark:divide-surface-800/60">
+      <div className="divide-y divide-surface-100/80 dark:divide-surface-800/60">
         {children}
       </div>
     </div>
@@ -135,18 +137,18 @@ function SectionCard({ icon: Icon, title, description, accent, children }) {
 
 function SettingRow({ label, description, children }) {
   return (
-    <div className="flex flex-col gap-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
-      <div className="min-w-0 flex-1">
-        <p className="text-[13px] font-medium text-surface-800 dark:text-surface-100">
+    <div className="flex flex-col gap-4 px-6 py-5 sm:flex-row sm:items-center sm:justify-between hover:bg-surface-50/30 transition-colors dark:hover:bg-surface-800/20">
+      <div className="min-w-0 flex-1 pr-4">
+        <p className="text-[14px] font-semibold text-surface-900 dark:text-surface-100">
           {label}
         </p>
         {description && (
-          <p className="mt-0.5 text-[11px] leading-relaxed text-surface-400">
+          <p className="mt-1 text-[13px] leading-relaxed text-surface-500 dark:text-surface-400">
             {description}
           </p>
         )}
       </div>
-      <div className="flex shrink-0 items-center gap-2">{children}</div>
+      <div className="flex shrink-0 items-center gap-3">{children}</div>
     </div>
   );
 }
@@ -159,15 +161,15 @@ function Toggle({ enabled, onChange, disabled = false }) {
       onClick={() => onChange(!enabled)}
       aria-checked={enabled}
       role="switch"
-      className={`relative inline-flex h-6 w-10 shrink-0 cursor-pointer items-center rounded-full border transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 dark:focus:ring-offset-surface-900 ${
+      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-all duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 dark:focus:ring-offset-surface-900 ${
         enabled
-          ? "border-brand-500 bg-brand-500"
-          : "border-surface-300 bg-surface-200 dark:border-surface-600 dark:bg-surface-700"
-      } ${disabled ? "cursor-not-allowed opacity-40" : ""}`}
+          ? "bg-emerald-500"
+          : "bg-surface-300 dark:bg-surface-600"
+      } ${disabled ? "cursor-not-allowed opacity-50" : "active:scale-95"}`}
     >
       <span
-        className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform duration-200 ${
-          enabled ? "translate-x-[18px]" : "translate-x-0.5"
+        className={`inline-block h-5 w-5 rounded-full bg-white shadow-sm ring-1 ring-black/5 transition-transform duration-300 ease-in-out ${
+          enabled ? "translate-x-5" : "translate-x-0"
         }`}
       />
     </button>
@@ -175,20 +177,16 @@ function Toggle({ enabled, onChange, disabled = false }) {
 }
 
 function NumberInput({ value, onChange, min, max, step = 1, unit, disabled }) {
-  /* Keep a local string so the user can clear the field while typing.
-     The numeric value is only committed on blur. */
   const [draft, setDraft] = useState(() => String(value));
   const [committed, setCommitted] = useState(value);
 
-  /* Adjust state during render when the external value changes
-     (e.g. config sync). Uses state — not refs — so React 19 is happy. */
   if (value !== committed) {
     setCommitted(value);
     setDraft(String(value));
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="relative flex items-center group">
       <input
         type="number"
         min={min}
@@ -200,17 +198,20 @@ function NumberInput({ value, onChange, min, max, step = 1, unit, disabled }) {
         onBlur={() => {
           const v = Number(draft);
           if (draft === "" || Number.isNaN(v)) {
-            /* Revert to last committed value if user left it empty */
             setDraft(String(committed));
           } else {
             setCommitted(v);
             onChange(v);
           }
         }}
-        className="h-9 w-24 rounded-lg border border-surface-200 bg-surface-50 px-3 text-sm font-semibold tabular-nums text-surface-800 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-surface-700 dark:bg-surface-800 dark:text-surface-100 disabled:opacity-50"
+        className={`h-9 w-28 rounded-xl border border-surface-200 bg-surface-50 pl-3 pr-8 text-[13px] font-bold tabular-nums text-surface-900 outline-none transition-all focus:border-brand-500 focus:bg-white focus:ring-4 focus:ring-brand-500/10 dark:border-surface-700 dark:bg-surface-900 dark:text-white dark:focus:border-brand-500 dark:focus:bg-surface-800 ${
+          disabled ? "opacity-50 cursor-not-allowed" : ""
+        }`}
       />
       {unit && (
-        <span className="text-xs font-semibold text-surface-400">{unit}</span>
+        <span className="absolute right-3 pointer-events-none text-[11px] font-bold text-surface-400 group-focus-within:text-brand-500 transition-colors">
+          {unit}
+        </span>
       )}
     </div>
   );
@@ -228,7 +229,7 @@ function PhoneInput({ value, onChange, placeholder, disabled }) {
         const v = e.target.value.replace(/\D/g, "").slice(0, 10);
         onChange(v);
       }}
-      className="h-9 w-40 rounded-lg border border-surface-200 bg-surface-50 px-3 text-sm font-mono font-semibold tabular-nums text-surface-800 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-surface-700 dark:bg-surface-800 dark:text-surface-100 disabled:opacity-50"
+      className="h-9 w-40 rounded-xl border border-surface-200 bg-surface-50 px-3.5 text-[13px] font-mono font-bold tracking-wider tabular-nums text-surface-900 outline-none transition-all placeholder:text-surface-400 focus:border-brand-500 focus:bg-white focus:ring-4 focus:ring-brand-500/10 dark:border-surface-700 dark:bg-surface-900 dark:text-white dark:placeholder:text-surface-600 dark:focus:border-brand-500 dark:focus:bg-surface-800 disabled:opacity-50 disabled:cursor-not-allowed"
     />
   );
 }
@@ -240,7 +241,7 @@ function TimeInput({ value, onChange, disabled }) {
       value={value}
       disabled={disabled}
       onChange={(e) => onChange(e.target.value)}
-      className="h-9 rounded-lg border border-surface-200 bg-surface-50 px-3 text-sm font-semibold text-surface-800 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-surface-700 dark:bg-surface-800 dark:text-surface-100 disabled:opacity-50"
+      className="h-9 w-32 rounded-xl border border-surface-200 bg-surface-50 px-3.5 text-[13px] font-bold text-surface-900 outline-none transition-all focus:border-brand-500 focus:bg-white focus:ring-4 focus:ring-brand-500/10 dark:border-surface-700 dark:bg-surface-900 dark:text-white dark:focus:border-brand-500 dark:focus:bg-surface-800 disabled:opacity-50 disabled:cursor-not-allowed"
     />
   );
 }
@@ -253,25 +254,27 @@ function ActionButton({
   disabled,
   small,
 }) {
-  const base = small ? "px-2.5 py-1 text-[12px]" : "px-3.5 py-2 text-sm";
+  const base = small ? "px-3 py-1.5 text-[12px]" : "px-4 py-2.5 text-[14px]";
   const variants = {
     primary:
-      "border border-brand-500 bg-brand-500 text-white hover:bg-brand-600 hover:border-brand-600 focus:ring-brand-500",
+      "bg-surface-900 text-white shadow-sm hover:bg-surface-800 dark:bg-white dark:text-surface-900 dark:hover:bg-surface-100",
     danger:
-      "border border-red-500 bg-red-500 text-white hover:bg-red-600 focus:ring-red-500",
+      "bg-red-50 text-red-600 hover:bg-red-100 border border-red-200/60 dark:bg-red-500/10 dark:text-red-400 dark:hover:bg-red-500/20 dark:border-red-900/30",
     warning:
-      "border border-amber-500 bg-amber-500 text-white hover:bg-amber-600 focus:ring-amber-500",
+      "bg-amber-50 text-amber-600 hover:bg-amber-100 border border-amber-200/60 dark:bg-amber-500/10 dark:text-amber-400 dark:hover:bg-amber-500/20 dark:border-amber-900/30",
     secondary:
-      "border border-surface-200 bg-white text-surface-700 hover:bg-surface-50 focus:ring-surface-400 dark:border-surface-700 dark:bg-surface-800 dark:text-surface-200 dark:hover:bg-surface-700",
+      "bg-white text-surface-700 hover:bg-surface-50 border border-surface-200 shadow-sm dark:bg-surface-800 dark:text-surface-200 dark:border-surface-700 dark:hover:bg-surface-700",
   };
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`inline-flex items-center gap-1.5 rounded-lg font-medium transition-all focus:outline-none focus:ring-2 focus:ring-offset-1 dark:focus:ring-offset-surface-900 disabled:cursor-not-allowed disabled:opacity-50 ${base} ${variants[variant]}`}
+      className={`inline-flex items-center justify-center gap-1.5 rounded-xl font-bold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-surface-900 ${base} ${variants[variant]} ${
+        disabled ? "cursor-not-allowed opacity-50 shadow-none" : "active:scale-[0.97]"
+      }`}
     >
-      {Icon && <Icon size={small ? 12 : 14} />}
+      {Icon && <Icon size={small ? 14 : 16} strokeWidth={2.5} />}
       {label}
     </button>
   );
@@ -280,15 +283,15 @@ function ActionButton({
 function StatusBadge({ active }) {
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium ${
+      className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider ${
         active
-          ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400"
+          ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400"
           : "bg-surface-100 text-surface-500 dark:bg-surface-800 dark:text-surface-400"
       }`}
     >
       <span
         className={`h-1.5 w-1.5 rounded-full ${
-          active ? "bg-emerald-500" : "bg-surface-400"
+          active ? "bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.8)]" : "bg-surface-400"
         }`}
       />
       {active ? "On" : "Off"}
@@ -330,29 +333,29 @@ function TemplateEditor({
   );
 
   return (
-    <div className="space-y-3 px-6 py-4">
+    <div className="space-y-4 px-6 py-5 hover:bg-surface-50/30 transition-colors dark:hover:bg-surface-800/20">
       {/* Header */}
       <div>
-        <p className="text-sm font-semibold text-surface-800 dark:text-surface-100">
+        <p className="text-[14px] font-semibold text-surface-900 dark:text-surface-100">
           {label}
         </p>
         {description && (
-          <p className="mt-0.5 text-xs text-surface-400">{description}</p>
+          <p className="mt-1 text-[13px] text-surface-500 dark:text-surface-400">{description}</p>
         )}
       </div>
 
       {/* Placeholder Buttons */}
-      <div className="flex flex-wrap gap-1.5">
+      <div className="flex flex-wrap gap-2">
         {SMS_PLACEHOLDERS.map(({ tag, label: lbl }) => (
           <button
             key={tag}
             type="button"
             disabled={disabled}
             onClick={() => insertPlaceholder(tag)}
-            className="inline-flex items-center gap-1 rounded-md border border-surface-200 bg-surface-50 px-2 py-1 text-[11px] font-bold text-surface-600 transition-colors hover:border-brand-400 hover:bg-brand-50 hover:text-brand-600 dark:border-surface-700 dark:bg-surface-800 dark:text-surface-300 dark:hover:border-brand-500 dark:hover:bg-brand-900/30 dark:hover:text-brand-400 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-surface-200 bg-white px-2.5 py-1.5 text-[11px] font-bold text-surface-700 shadow-sm transition-all hover:border-brand-500 hover:bg-brand-50 hover:text-brand-700 active:scale-95 dark:border-surface-700 dark:bg-surface-800 dark:text-surface-300 dark:hover:border-brand-500 dark:hover:bg-brand-500/10 dark:hover:text-brand-400 disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            <span className="font-mono">{tag}</span>
-            <span className="text-[10px] font-medium text-surface-400">
+            <span className="font-mono text-brand-600 dark:text-brand-400">{tag}</span>
+            <span className="text-[10px] font-semibold text-surface-400">
               {lbl}
             </span>
           </button>
@@ -368,50 +371,49 @@ function TemplateEditor({
           disabled={disabled}
           onChange={(e) => onChange(sanitiseTemplate(e.target.value))}
           placeholder="Type your SMS template…"
-          className="w-full resize-none rounded-lg border border-surface-200 bg-surface-50 px-3 py-2.5 font-mono text-sm text-surface-800 outline-none transition-colors placeholder:text-surface-300 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-surface-700 dark:bg-surface-800 dark:text-surface-100 dark:placeholder:text-surface-600 disabled:opacity-50"
+          className="w-full resize-none rounded-xl border border-surface-200 bg-surface-50 px-4 py-3 font-mono text-[13px] leading-relaxed text-surface-900 outline-none transition-all placeholder:text-surface-400 focus:border-brand-500 focus:bg-white focus:ring-4 focus:ring-brand-500/10 dark:border-surface-700 dark:bg-surface-900 dark:text-white dark:placeholder:text-surface-600 dark:focus:border-brand-500 dark:focus:bg-surface-800 disabled:opacity-50"
         />
         <span
-          className={`absolute bottom-2 right-3 text-[10px] font-bold tabular-nums ${
+          className={`absolute bottom-3 right-4 text-[11px] font-bold tabular-nums bg-white/80 dark:bg-surface-900/80 backdrop-blur px-1 rounded ${
             overLimit
               ? "text-red-500"
               : charCount > 140
                 ? "text-amber-500"
-                : "text-surface-300 dark:text-surface-600"
+                : "text-surface-400 dark:text-surface-500"
           }`}
         >
           {charCount}/160
         </span>
       </div>
 
-      {/* Live Preview */}
-      {value && (
-        <div className="rounded-lg border border-dashed border-surface-200 bg-surface-50/50 px-3 py-2 dark:border-surface-700 dark:bg-surface-800/50">
-          <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-surface-400">
+      {/* Live Preview & Action */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div className="flex-1 rounded-xl border border-dashed border-surface-200 bg-surface-50/50 px-4 py-3 dark:border-surface-700 dark:bg-surface-800/50">
+          <p className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-surface-400">
             Preview
           </p>
-          <p className="font-mono text-xs leading-relaxed text-surface-700 dark:text-surface-200">
+          <p className="font-mono text-[13px] leading-relaxed text-surface-800 dark:text-surface-200">
             {preview}
           </p>
         </div>
-      )}
 
-      {/* Save */}
-      <div className="flex justify-end">
-        <ActionButton
-          icon={Save}
-          label={
-            tplStatus === "saving"
-              ? "Saving…"
-              : tplStatus === "saved"
-                ? "Saved!"
-                : tplStatus === "error"
-                  ? "Failed"
-                  : "Save Template"
-          }
-          small
-          disabled={disabled || !value || overLimit || tplStatus === "saving"}
-          onClick={onSave}
-        />
+        <div className="shrink-0">
+          <ActionButton
+            icon={Save}
+            label={
+              tplStatus === "saving"
+                ? "Saving…"
+                : tplStatus === "saved"
+                  ? "Saved!"
+                  : tplStatus === "error"
+                    ? "Failed"
+                    : "Save Template"
+            }
+            small
+            disabled={disabled || !value || overLimit || tplStatus === "saving"}
+            onClick={onSave}
+          />
+        </div>
       </div>
     </div>
   );
@@ -433,18 +435,15 @@ export default function SettingsPage() {
     deviceId,
   } = useTelemetry();
 
-  /* ── Debounce "connected" so brief WS reconnects don't flash offline ── */
   const wsConnectedNow = wsStatus === "connected";
   const [connected, setConnected] = useState(wsConnectedNow);
   const offlineTimerRef = useRef(null);
 
   useEffect(() => {
     if (wsConnectedNow) {
-      /* Immediately show connected — wrapped in setTimeout to satisfy eslint */
       clearTimeout(offlineTimerRef.current);
       setTimeout(() => setConnected(true), 0);
     } else {
-      /* Delay showing offline by 1.5 s to absorb brief reconnects */
       offlineTimerRef.current = setTimeout(() => setConnected(false), 1500);
     }
     return () => clearTimeout(offlineTimerRef.current);
@@ -455,26 +454,15 @@ export default function SettingsPage() {
   const [prevArduino, setPrevArduino] = useState(arduino);
   const [userEditedTime, setUserEditedTime] = useState(false);
 
-  /* ── Parse initial config/templates from TelemetryContext on first mount.
-       This ensures the UI shows the ACTUAL device values from the very first
-       render, eliminating the flash-of-defaults that caused settings to
-       appear reverted after page navigation. ── */
   const [initCfg] = useState(() => parseConfig(config));
   const [initTpl] = useState(() => parseSmsTemplates(smsTemplates));
 
-  /* ── State initialised from device config (falls back to firmware defaults) ── */
-
-  // 1. Hardware Service
   const [hardwareEnabled, setHardwareEnabled] = useState(
     initCfg.hwEnabled !== undefined ? initCfg.hwEnabled === "true" : true
   );
-
-  // 2. GSM Service
   const [gsmEnabled, setGsmEnabled] = useState(
     initCfg.gsmEnabled !== undefined ? initCfg.gsmEnabled === "true" : true
   );
-
-  // 3. Phone Numbers
   const [phoneEmergency, setPhoneEmergency] = useState(
     initCfg.phoneEmergency || "9260963100"
   );
@@ -485,44 +473,26 @@ export default function SettingsPage() {
     initCfg.phoneWashroom || "9260963100"
   );
   const [phoneAC, setPhoneAC] = useState(initCfg.phoneAC || "9260963100");
-
-  // 4. System Time — defaults to empty; synced from device telemetry
   const [systemTime, setSystemTime] = useState("");
-
-  // 5. Number of Periods
   const [totalPeriods, setTotalPeriods] = useState(
     Number(initCfg.totalPeriods) || 10
   );
-
-  // 6. Period Duration
   const [periodDuration, setPeriodDuration] = useState(
     Number(initCfg.periodDuration) || 60
   );
-
-  // 7. Washroom Sensor Threshold
   const [washroomThreshold, setWashroomThreshold] = useState(
     Number(initCfg.gasThreshold) || 2800
   );
-
-  // 8. Teacher Grace Duration
   const [teacherGrace, setTeacherGrace] = useState(
     Number(initCfg.graceDuration) || 10
   );
-
-  // 9. Missed Call
   const [missedCallEnabled, setMissedCallEnabled] = useState(
     initCfg.callEnabled !== undefined ? initCfg.callEnabled === "true" : true
   );
-
-  // 11. Emergency Buzzer Duration
   const [emBuzzerDuration, setEmBuzzerDuration] = useState(
     Number(initCfg.emBuzzerDuration) || 5
   );
-
-  // 12. Classroom Number
   const [classroomNo, setClassroomNo] = useState(initCfg.classroom || "706");
-
-  // 16. Auto Reboot
   const [autoRebootEnabled, setAutoRebootEnabled] = useState(
     initCfg.autoReboot !== undefined ? initCfg.autoReboot === "true" : false
   );
@@ -537,8 +507,6 @@ export default function SettingsPage() {
     }
     return "03:00";
   });
-
-  // 17. SMS Templates
   const [tplEmergency, setTplEmergency] = useState(
     initTpl.tplEmergency || "EMERGENCY Room {room} at {time}"
   );
@@ -552,11 +520,8 @@ export default function SettingsPage() {
     initTpl.tplWashroom || "Washroom Alert Room {room} Gas:{gas}"
   );
 
-  /* ── Sync state from device config telemetry ── */
   const parsedConfig = useMemo(() => parseConfig(config), [config]);
 
-  /* Adjust state during render when new config arrives from device.
-     Avoids useEffect to prevent cascading-render warnings. */
   if (config && config !== appliedConfig) {
     setAppliedConfig(config);
     const c = parsedConfig;
@@ -584,13 +549,11 @@ export default function SettingsPage() {
     }
   }
 
-  /* ── Sync SMS templates from device telemetry ── */
   const parsedTemplates = useMemo(
     () => parseSmsTemplates(smsTemplates),
     [smsTemplates]
   );
 
-  /* Adjust SMS template state during render when new templates arrive. */
   if (smsTemplates && smsTemplates !== appliedTemplates) {
     setAppliedTemplates(smsTemplates);
     const t = parsedTemplates;
@@ -600,7 +563,6 @@ export default function SettingsPage() {
     if (t.tplWashroom) setTplWashroom(t.tplWashroom);
   }
 
-  /* Sync system time from live arduino telemetry during render. */
   if (arduino && arduino !== prevArduino) {
     setPrevArduino(arduino);
     if (!userEditedTime) {
@@ -613,14 +575,12 @@ export default function SettingsPage() {
     }
   }
 
-  /* ── Request config from device on connect ── */
   useEffect(() => {
     if (connected) {
       sendRawCommand("GET_CONFIG");
     }
   }, [connected, sendRawCommand]);
 
-  /* ── Save status tracking per field: idle | saving | saved | error ── */
   const [saveStatus, setSaveStatus] = useState({});
 
   const handleSave = useCallback(
@@ -664,10 +624,8 @@ export default function SettingsPage() {
     [connected, sendTrackedCommand]
   );
 
-  /* ── Pending critical action (password-gated) ── */
   const [pendingAction, setPendingAction] = useState(null);
 
-  /* ── Fire-and-forget for danger actions (restart / factory reset) ── */
   const send = useCallback(
     (cmd) => {
       if (!connected) return;
@@ -676,63 +634,65 @@ export default function SettingsPage() {
     [connected, sendRawCommand]
   );
 
-  /* Three-state device status:
-     - Device Online  : WS connected AND ESP32 sending telemetry
-     - No Device      : WS connected to server but ESP32 not sending data
-     - Server Offline : WS not connected at all
-  */
   const deviceOnline = connected && telemetryFresh;
   const noDevice = connected && !telemetryFresh;
 
   const deviceStatusLabel = !connected
     ? "Server Offline"
     : noDevice
-      ? "No Device"
+      ? "No Device Connected"
       : "Device Online";
+
   const deviceStatusCls = !connected
-    ? "border-red-200 bg-red-50 text-red-600 dark:border-red-800/50 dark:bg-red-950/30 dark:text-red-400"
+    ? "bg-red-50 text-red-700 border-red-200/60 dark:bg-red-500/10 dark:text-red-400 dark:border-red-900/30"
     : noDevice
-      ? "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800/50 dark:bg-amber-950/30 dark:text-amber-400"
-      : "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800/50 dark:bg-emerald-950/30 dark:text-emerald-400";
+      ? "bg-amber-50 text-amber-700 border-amber-200/60 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-900/30"
+      : "bg-emerald-50 text-emerald-700 border-emerald-200/60 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-900/30";
+
   const deviceDotCls = !connected
     ? "bg-red-500"
     : noDevice
       ? "bg-amber-500 animate-pulse"
-      : "bg-emerald-500 animate-pulse";
+      : "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)] animate-pulse";
 
   return (
-    <AnimatedPage className="pb-10">
+    <AnimatedPage className="pb-16 max-w-5xl mx-auto space-y-8">
       {/* ── Page Header ── */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between border-b border-surface-200/60 pb-6 dark:border-surface-800/60">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-surface-900 dark:text-white">
-            Device Settings
+          <h1 className="text-3xl font-black tracking-tight text-surface-900 dark:text-white">
+            Configuration
           </h1>
-          <p className="mt-1 text-sm text-surface-500">
-            Configure ESP32 hardware, sensors, alerts and system parameters.
+          <p className="mt-2 text-[15px] font-medium text-surface-500 dark:text-surface-400">
+            Manage your hardware preferences, alerting thresholds, and system logic.
           </p>
         </div>
-        <span
-          className={`inline-flex items-center gap-1.5 self-start rounded-lg border px-3 py-1.5 text-[11px] font-semibold ${deviceStatusCls}`}
+
+        <div
+          className={`inline-flex items-center gap-2 self-start rounded-full border px-3.5 py-1.5 text-[12px] font-bold shadow-sm ${deviceStatusCls}`}
         >
-          <span className={`h-1.5 w-1.5 rounded-full ${deviceDotCls}`} />
+          <span className={`h-2 w-2 rounded-full ${deviceDotCls}`} />
           {deviceStatusLabel}
           {deviceId && deviceOnline && (
-            <span className="ml-1 font-mono opacity-60">{deviceId}</span>
+            <span className="ml-1 border-l border-current pl-2 font-mono opacity-60 mix-blend-multiply dark:mix-blend-screen">{deviceId}</span>
           )}
-        </span>
+        </div>
       </div>
 
       {/* ── Not Connected Warning ── */}
       {!connected && (
-        <div className="flex items-center gap-3 rounded-lg border border-amber-200/80 bg-amber-50 px-4 py-3 dark:border-amber-800/40 dark:bg-amber-950/20">
-          <AlertTriangle
-            size={15}
-            className="shrink-0 text-amber-600 dark:text-amber-400"
-          />
-          <p className="text-[13px] font-medium text-amber-700 dark:text-amber-300">
-            Device offline. Connect the ESP32 to make changes.
-          </p>
+        <div className="flex items-center gap-3 rounded-xl border border-amber-200/80 bg-gradient-to-r from-amber-50 to-white px-5 py-4 shadow-sm dark:border-amber-800/40 dark:from-amber-950/30 dark:to-surface-900">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/40">
+            <AlertTriangle size={18} className="text-amber-600 dark:text-amber-400" />
+          </div>
+          <div>
+            <p className="text-[14px] font-bold text-amber-900 dark:text-amber-300">
+              WebSocket Disconnected
+            </p>
+            <p className="text-[13px] text-amber-700/80 dark:text-amber-400/80">
+              Changes cannot be saved until the connection to the server is restored.
+            </p>
+          </div>
         </div>
       )}
 
@@ -743,7 +703,7 @@ export default function SettingsPage() {
         icon={Power}
         title="System Control"
         description="Toggle core hardware services on or off"
-        accent="bg-rose-500"
+        accent="bg-gradient-to-br from-rose-500 to-red-600"
       >
         <SettingRow
           label="Hardware Service"
@@ -753,11 +713,7 @@ export default function SettingsPage() {
           <Toggle
             enabled={hardwareEnabled}
             onChange={(v) =>
-              handleToggle(
-                v ? "HW_ENABLE" : "HW_DISABLE",
-                v,
-                setHardwareEnabled
-              )
+              handleToggle(v ? "HW_ENABLE" : "HW_DISABLE", v, setHardwareEnabled)
             }
             disabled={!connected}
           />
@@ -803,13 +759,13 @@ export default function SettingsPage() {
         icon={Phone}
         title="Phone Numbers"
         description="SMS & call recipients — only 10-digit numbers allowed"
-        accent="bg-blue-500"
+        accent="bg-gradient-to-br from-blue-500 to-indigo-600"
       >
         <SettingRow
           label="Emergency Number"
           description="Gas leak / emergency SMS & missed call recipient"
         >
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <PhoneInput
               value={phoneEmergency}
               onChange={setPhoneEmergency}
@@ -835,7 +791,7 @@ export default function SettingsPage() {
           label="Teacher Absent"
           description="SMS sent when teacher is absent beyond grace period"
         >
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <PhoneInput
               value={phoneTeacherAbsent}
               onChange={setPhoneTeacherAbsent}
@@ -861,7 +817,7 @@ export default function SettingsPage() {
           label="Washroom Alert"
           description="SMS sent when washroom sensor exceeds threshold"
         >
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <PhoneInput
               value={phoneWashroom}
               onChange={setPhoneWashroom}
@@ -887,7 +843,7 @@ export default function SettingsPage() {
           label="AC Request"
           description="SMS sent when students press the AC request button"
         >
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <PhoneInput
               value={phoneAC}
               onChange={setPhoneAC}
@@ -915,13 +871,13 @@ export default function SettingsPage() {
         icon={Clock}
         title="Time Settings"
         description="System clock and automatic reboot schedule"
-        accent="bg-violet-500"
+        accent="bg-gradient-to-br from-violet-500 to-purple-600"
       >
         <SettingRow
           label="System Time"
           description="Sync the ESP32 RTC clock (24-hour format) — time shown may differ from device current time"
         >
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <TimeInput
               value={systemTime}
               onChange={(v) => {
@@ -973,7 +929,7 @@ export default function SettingsPage() {
           label="Auto Reboot Time"
           description="When the daily auto-reboot happens (24-hour format)"
         >
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <TimeInput
               value={autoRebootTime}
               onChange={setAutoRebootTime}
@@ -1006,13 +962,13 @@ export default function SettingsPage() {
         icon={Hash}
         title="Classroom Configuration"
         description="Room identity, period schedule, and attendance timing"
-        accent="bg-indigo-500"
+        accent="bg-gradient-to-br from-fuchsia-500 to-pink-600"
       >
         <SettingRow
           label="Classroom Number"
           description="Room identifier shown in SMS alerts and dashboard telemetry"
         >
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <input
               type="text"
               value={classroomNo}
@@ -1021,7 +977,7 @@ export default function SettingsPage() {
               onChange={(e) =>
                 setClassroomNo(e.target.value.replace(/\s/g, ""))
               }
-              className="h-9 w-24 rounded-lg border border-surface-200 bg-surface-50 px-3 text-center text-sm font-bold tabular-nums text-surface-800 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-surface-700 dark:bg-surface-800 dark:text-surface-100 disabled:opacity-50"
+              className="h-9 w-28 rounded-xl border border-surface-200 bg-surface-50 px-3 text-center text-[13px] font-black tabular-nums tracking-widest text-surface-900 outline-none transition-all focus:border-brand-500 focus:bg-white focus:ring-4 focus:ring-brand-500/10 dark:border-surface-700 dark:bg-surface-900 dark:text-white dark:focus:border-brand-500 dark:focus:bg-surface-800 disabled:opacity-50 disabled:cursor-not-allowed"
             />
             <ActionButton
               icon={Save}
@@ -1039,7 +995,7 @@ export default function SettingsPage() {
           label="Total Periods"
           description="Number of class periods per day (1–15)"
         >
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <NumberInput
               value={totalPeriods}
               onChange={setTotalPeriods}
@@ -1064,7 +1020,7 @@ export default function SettingsPage() {
           label="Period Duration"
           description="Length of each period in seconds (30–7200)"
         >
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <NumberInput
               value={periodDuration}
               onChange={setPeriodDuration}
@@ -1089,7 +1045,7 @@ export default function SettingsPage() {
           label="Teacher Grace Time"
           description="How many seconds teacher can arrive before marked absent (5–600)"
         >
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <NumberInput
               value={teacherGrace}
               onChange={setTeacherGrace}
@@ -1118,13 +1074,13 @@ export default function SettingsPage() {
         icon={Wind}
         title="Sensor Configuration"
         description="Gas sensor trigger level for washroom alerts"
-        accent="bg-amber-500"
+        accent="bg-gradient-to-br from-amber-500 to-orange-500"
       >
         <SettingRow
           label="Washroom Gas Threshold"
           description="Alert triggers when sensor value exceeds this number (500–5000)"
         >
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <NumberInput
               value={washroomThreshold}
               onChange={setWashroomThreshold}
@@ -1149,7 +1105,7 @@ export default function SettingsPage() {
           label="Emergency Buzzer Duration"
           description="How long the buzzer sounds during an emergency (1–120 seconds)"
         >
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <NumberInput
               value={emBuzzerDuration}
               onChange={setEmBuzzerDuration}
@@ -1181,7 +1137,7 @@ export default function SettingsPage() {
         icon={MessageSquare}
         title="SMS Templates"
         description="Customise alert messages — use placeholders for dynamic values"
-        accent="bg-cyan-500"
+        accent="bg-gradient-to-br from-cyan-500 to-blue-500"
       >
         <TemplateEditor
           label="Emergency Alert"
@@ -1228,68 +1184,70 @@ export default function SettingsPage() {
       {/* ════════════════════════════════════════════════════════
          8️⃣ DEVICE ACTIONS (Danger Zone)
          ════════════════════════════════════════════════════════ */}
-      <div className="flex items-center gap-3">
-        <div className="h-px flex-1 bg-surface-200 dark:bg-surface-800" />
-        <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-red-500">
-          <AlertTriangle size={10} />
-          Danger Zone
-        </span>
-        <div className="h-px flex-1 bg-surface-200 dark:bg-surface-800" />
-      </div>
-      <SectionCard
-        icon={AlertTriangle}
-        title="Device Actions"
-        description="Restart or factory-reset the device. Requires password confirmation."
-        accent="bg-red-500"
-      >
-        <SettingRow
-          label="Restart Device"
-          description="Soft-reboot the ESP32 — reconnects automatically within seconds"
-        >
-          <ActionButton
-            icon={RotateCcw}
-            label="Restart"
-            variant="danger"
-            disabled={!connected}
-            onClick={() =>
-              setPendingAction({
-                title: "Restart Device",
-                description:
-                  "The ESP32 will soft-reboot and reconnect automatically.",
-                confirmLabel: "Restart",
-                variant: "warning",
-                action: () => send("DEVICE_RESTART"),
-              })
-            }
-          />
-        </SettingRow>
+      <div className="pt-6">
+        <div className="mb-6 flex items-center gap-4">
+          <div className="h-px flex-1 bg-gradient-to-r from-transparent to-red-200 dark:to-red-900/50" />
+          <span className="flex items-center gap-2 text-[11px] font-black uppercase tracking-widest text-red-500">
+            <AlertTriangle size={14} />
+            Danger Zone
+          </span>
+          <div className="h-px flex-1 bg-gradient-to-l from-transparent to-red-200 dark:to-red-900/50" />
+        </div>
 
-        <SettingRow
-          label="Factory Reset"
-          description="Reset ALL settings to firmware defaults — this cannot be undone"
-        >
-          <ActionButton
-            icon={Zap}
+        <div className="overflow-hidden rounded-2xl border border-red-200 bg-red-50/30 shadow-sm dark:border-red-900/40 dark:bg-red-950/10">
+          <SettingRow
+            label="Restart Device"
+            description="Soft-reboot the ESP32 — reconnects automatically within seconds"
+          >
+            <ActionButton
+              icon={RotateCcw}
+              label="Restart"
+              variant="warning"
+              disabled={!connected}
+              onClick={() =>
+                setPendingAction({
+                  title: "Restart Device",
+                  description:
+                    "The ESP32 will soft-reboot and reconnect automatically.",
+                  confirmLabel: "Restart",
+                  variant: "warning",
+                  action: () => send("DEVICE_RESTART"),
+                })
+              }
+            />
+          </SettingRow>
+
+          <SettingRow
             label="Factory Reset"
-            variant="danger"
-            disabled={!connected}
-            onClick={() =>
-              setPendingAction({
-                title: "Factory Reset",
-                description:
-                  "All custom settings will be erased and firmware defaults restored. The device will restart.",
-                confirmLabel: "Factory Reset",
-                variant: "danger",
-                action: () => send("DEVICE_FACTORY_RESET"),
-              })
-            }
-          />
-        </SettingRow>
-      </SectionCard>
+            description="Reset ALL settings to firmware defaults — this cannot be undone"
+          >
+            <ActionButton
+              icon={Zap}
+              label="Factory Reset"
+              variant="danger"
+              disabled={!connected}
+              onClick={() =>
+                setPendingAction({
+                  title: "Factory Reset",
+                  description:
+                    "All custom settings will be erased and firmware defaults restored. The device will restart.",
+                  confirmLabel: "Factory Reset",
+                  variant: "danger",
+                  action: () => send("DEVICE_FACTORY_RESET"),
+                })
+              }
+            />
+          </SettingRow>
+        </div>
+      </div>
 
       {/* ── Footer spacer ── */}
-      <div className="pt-2 text-center text-[11px] text-surface-300 dark:text-surface-700">
-        EduGuard &middot; Device Settings{deviceId ? ` · ${deviceId}` : ""}
+      <div className="pt-8 text-center">
+        <p className="text-[12px] font-medium text-surface-400 dark:text-surface-600">
+          EduGuard Configuration
+          {deviceId && <span className="mx-2 tracking-widest opacity-50">&middot;</span>}
+          {deviceId && <span className="font-mono opacity-70">{deviceId}</span>}
+        </p>
       </div>
 
       {/* ═══ Password Confirm Modal for critical actions ═══ */}

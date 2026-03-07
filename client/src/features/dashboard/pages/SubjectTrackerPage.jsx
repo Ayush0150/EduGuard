@@ -9,6 +9,7 @@
 import {
   BookOpen,
   Calendar,
+  CheckCircle2,
   FileText,
   Hash,
   Layers,
@@ -85,16 +86,13 @@ function AddSubjectModal({ open, onClose, onAdd }) {
   const [name, setName] = useState("");
   const inputRef = useRef(null);
 
-  // Reset name + focus when the modal opens
   useEffect(() => {
     if (open) {
-      // Use a microtask to reset so it doesn't count as synchronous setState
       queueMicrotask(() => setName(""));
       setTimeout(() => inputRef.current?.focus(), 50);
     }
   }, [open]);
 
-  // Close on Escape
   useEffect(() => {
     if (!open) return;
     const handler = (e) => {
@@ -118,55 +116,57 @@ function AddSubjectModal({ open, onClose, onAdd }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-fade-in"
+        className="absolute inset-0 bg-surface-900/40 backdrop-blur-md transition-opacity duration-300 dark:bg-black/60"
         onClick={onClose}
       />
       {/* Panel */}
       <form
         onSubmit={handleSubmit}
-        className="relative w-full max-w-sm animate-scale-in rounded-2xl border border-surface-200/80 bg-white p-6 shadow-xl dark:border-surface-700 dark:bg-surface-900"
+        className="relative w-full max-w-md animate-in fade-in zoom-in-95 duration-200 ease-out rounded-2xl border border-surface-200/60 bg-white p-7 shadow-[0_16px_40px_rgb(0,0,0,0.12)] dark:border-surface-700/60 dark:bg-surface-900 dark:shadow-[0_16px_40px_rgb(0,0,0,0.5)]"
       >
-        <div className="mb-5 flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-600 shadow-sm shadow-brand-600/20">
-            <BookOpen size={16} className="text-white" />
+        <div className="mb-6 flex items-start gap-4">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-500 to-brand-600 shadow-inner shadow-white/20 ring-1 ring-brand-500/20">
+            <BookOpen size={24} className="text-white drop-shadow-sm" />
           </div>
-          <div>
-            <h3 className="text-[15px] font-bold text-surface-900 dark:text-white">
-              Add Subject
+          <div className="pt-1">
+            <h3 className="text-lg font-bold tracking-tight text-surface-900 dark:text-white">
+              Create New Subject
             </h3>
-            <p className="text-[11px] text-surface-400">
-              Create a new subject tab to track lectures.
+            <p className="mt-1 text-[13px] text-surface-500 dark:text-surface-400">
+              Add a new tab to organize and track your lecture progress.
             </p>
           </div>
         </div>
 
-        <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-surface-400">
-          Subject Name <span className="text-red-400">*</span>
-        </label>
-        <input
-          ref={inputRef}
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="e.g. Mathematics, Physics, History"
-          maxLength={50}
-          className="w-full rounded-xl border border-surface-200 bg-surface-50/50 px-3.5 py-2.5 text-sm text-surface-900 outline-none transition-all placeholder:text-surface-400 focus:border-brand-400 focus:bg-white focus:ring-2 focus:ring-brand-100 dark:border-surface-700 dark:bg-surface-800/60 dark:text-surface-100 dark:placeholder:text-surface-500 dark:focus:border-brand-500 dark:focus:bg-surface-800 dark:focus:ring-brand-900/30"
-        />
+        <div className="space-y-2">
+          <label className="text-[12px] font-bold uppercase tracking-wider text-surface-500 dark:text-surface-400">
+            Subject Name <span className="text-red-500">*</span>
+          </label>
+          <input
+            ref={inputRef}
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. Advanced Mathematics, Modern Physics..."
+            maxLength={50}
+            className="w-full rounded-xl border border-surface-200 bg-surface-50/50 px-4 py-3 text-[14px] font-medium text-surface-900 outline-none transition-all placeholder:text-surface-400 focus:border-brand-500 focus:bg-white focus:ring-4 focus:ring-brand-500/10 dark:border-surface-700 dark:bg-surface-800/50 dark:text-white dark:placeholder:text-surface-500 dark:focus:border-brand-500 dark:focus:bg-surface-800"
+          />
+        </div>
 
-        <div className="mt-5 flex items-center justify-end gap-2.5">
+        <div className="mt-8 flex items-center justify-end gap-3">
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg px-4 py-2 text-sm font-medium text-surface-600 transition-colors hover:bg-surface-100 dark:text-surface-300 dark:hover:bg-surface-800"
+            className="rounded-xl px-5 py-2.5 text-[14px] font-semibold text-surface-600 transition-all hover:bg-surface-100 active:scale-[0.98] dark:text-surface-300 dark:hover:bg-surface-800"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={!name.trim()}
-            className="flex items-center gap-1.5 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-brand-600/20 transition-all hover:bg-brand-700 hover:shadow-md active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40"
+            className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-brand-600 to-brand-500 px-5 py-2.5 text-[14px] font-semibold text-white shadow-md shadow-brand-500/25 transition-all hover:from-brand-500 hover:to-brand-400 hover:shadow-lg hover:shadow-brand-500/30 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:shadow-md"
           >
-            <Plus size={14} />
+            <Plus size={16} strokeWidth={2.5} />
             Add Subject
           </button>
         </div>
@@ -199,23 +199,27 @@ function AddEntryForm({ onAdd, onCancel }) {
   };
 
   const inputCls =
-    "w-full rounded-lg border border-surface-200 bg-white px-3 py-2 text-sm text-surface-900 outline-none transition-all placeholder:text-surface-400 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 dark:border-surface-700 dark:bg-surface-800 dark:text-surface-100 dark:placeholder:text-surface-500 dark:focus:border-brand-500 dark:focus:ring-brand-900/30";
+    "w-full rounded-lg border border-surface-200 bg-white px-3.5 py-2.5 text-[13px] font-medium text-surface-900 outline-none transition-all placeholder:text-surface-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 dark:border-surface-700 dark:bg-surface-900 dark:text-white dark:placeholder:text-surface-500 dark:focus:border-brand-500";
 
   return (
     <form
       onSubmit={handleSubmit}
-      className="animate-fade-in rounded-xl border border-brand-200/60 bg-brand-50/30 p-4 dark:border-brand-800/40 dark:bg-brand-950/20"
+      className="animate-in fade-in slide-in-from-top-2 duration-300 relative overflow-hidden rounded-2xl border border-brand-200/80 bg-gradient-to-b from-brand-50/50 to-white p-5 shadow-sm dark:border-brand-800/40 dark:from-brand-950/20 dark:to-surface-900"
     >
-      <div className="mb-3 flex items-center gap-2">
-        <Pencil size={13} className="text-brand-500" />
-        <span className="text-xs font-bold text-brand-700 dark:text-brand-400">
-          New Lecture Entry
+      <div className="absolute left-0 top-0 h-1 w-full bg-gradient-to-r from-brand-400 to-brand-600" />
+
+      <div className="mb-4 flex items-center gap-2.5">
+        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-100 dark:bg-brand-900/40">
+          <Pencil size={14} className="text-brand-600 dark:text-brand-400" />
+        </div>
+        <span className="text-[14px] font-bold text-surface-900 dark:text-white">
+          Log New Lecture
         </span>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        <div>
-          <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-surface-400">
+      <div className="grid gap-4 sm:grid-cols-12">
+        <div className="sm:col-span-3">
+          <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-surface-500">
             Date
           </label>
           <input
@@ -225,23 +229,23 @@ function AddEntryForm({ onAdd, onCancel }) {
             className={inputCls}
           />
         </div>
-        <div>
-          <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-surface-400">
-            Topic <span className="text-red-400">*</span>
+        <div className="sm:col-span-6">
+          <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-surface-500">
+            Topic Covered <span className="text-red-500">*</span>
           </label>
           <input
             ref={topicRef}
             type="text"
             value={topic}
             onChange={(e) => setTopic(e.target.value)}
-            placeholder="Lecture topic…"
+            placeholder="What was taught today?"
             maxLength={120}
             className={inputCls}
           />
         </div>
-        <div>
-          <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-surface-400">
-            Pages / Portion
+        <div className="sm:col-span-3">
+          <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-surface-500">
+            Portion / Pages
           </label>
           <input
             type="text"
@@ -254,21 +258,21 @@ function AddEntryForm({ onAdd, onCancel }) {
         </div>
       </div>
 
-      <div className="mt-3 flex items-center justify-end gap-2">
+      <div className="mt-5 flex items-center justify-end gap-3">
         <button
           type="button"
           onClick={onCancel}
-          className="rounded-lg px-3 py-1.5 text-xs font-medium text-surface-500 transition-colors hover:bg-surface-100 dark:hover:bg-surface-800"
+          className="rounded-lg px-4 py-2 text-[13px] font-semibold text-surface-600 transition-colors hover:bg-surface-100 active:scale-[0.98] dark:text-surface-400 dark:hover:bg-surface-800"
         >
           Cancel
         </button>
         <button
           type="submit"
           disabled={!topic.trim()}
-          className="flex items-center gap-1 rounded-lg bg-brand-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm transition-all hover:bg-brand-700 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40"
+          className="flex items-center gap-1.5 rounded-lg bg-surface-900 px-4 py-2 text-[13px] font-semibold text-white shadow-sm transition-all hover:bg-surface-800 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 dark:bg-white dark:text-surface-900 dark:hover:bg-surface-100"
         >
-          <Plus size={12} />
-          Add Entry
+          <CheckCircle2 size={14} />
+          Save Entry
         </button>
       </div>
     </form>
@@ -282,70 +286,84 @@ function EntryRow({ entry, index, onDelete }) {
   const rel = relativeDate(entry.date);
 
   return (
-    <div className="group flex items-start gap-3 rounded-lg px-3 py-3 transition-colors hover:bg-surface-50 dark:hover:bg-surface-800/40">
-      {/* Row number */}
-      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-surface-100 text-[11px] font-bold tabular-nums text-surface-400 dark:bg-surface-800 dark:text-surface-500">
+    <div className="group relative flex items-start gap-4 rounded-xl border border-transparent bg-white p-4 transition-all duration-200 hover:border-surface-200 hover:shadow-md dark:bg-surface-900 dark:hover:border-surface-700 dark:hover:shadow-black/20">
+      {/* Colorful Row Number Indicator */}
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-surface-50 to-surface-100 font-mono text-[13px] font-bold text-surface-500 shadow-inner ring-1 ring-inset ring-surface-200/60 dark:from-surface-800 dark:to-surface-800 dark:text-surface-400 dark:ring-surface-700">
         {index + 1}
       </div>
 
       {/* Content */}
-      <div className="min-w-0 flex-1">
-        <p className="text-[13px] font-semibold leading-snug text-surface-900 dark:text-white">
+      <div className="min-w-0 flex-1 pt-0.5">
+        <p className="text-[15px] font-bold leading-snug text-surface-900 dark:text-white">
           {entry.topic}
         </p>
-        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
-          <span className="flex items-center gap-1 text-[11px] font-medium text-surface-400">
-            <Calendar size={11} />
+
+        {/* Colorful Badges */}
+        <div className="mt-2.5 flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1.5 rounded-md border border-blue-200/60 bg-blue-50/50 px-2 py-1 text-[11px] font-semibold text-blue-700 dark:border-blue-800/40 dark:bg-blue-900/20 dark:text-blue-400">
+            <Calendar size={12} className="text-blue-500 dark:text-blue-400" />
             {formatDate(entry.date)}
             {rel && (
-              <span className="ml-0.5 text-[10px] text-brand-500 dark:text-brand-400">
-                ({rel})
+              <span className="ml-1 rounded bg-blue-100/80 px-1 py-0.5 text-[10px] text-blue-800 dark:bg-blue-800/40 dark:text-blue-300">
+                {rel}
               </span>
             )}
-          </span>
+          </div>
+
           {entry.pages && (
-            <span className="flex items-center gap-1 text-[11px] font-medium text-surface-400">
-              <FileText size={11} />
+            <div className="flex items-center gap-1.5 rounded-md border border-amber-200/60 bg-amber-50/50 px-2 py-1 text-[11px] font-semibold text-amber-700 dark:border-amber-800/40 dark:bg-amber-900/20 dark:text-amber-400">
+              <FileText
+                size={12}
+                className="text-amber-500 dark:text-amber-400"
+              />
               {entry.pages}
-            </span>
+            </div>
           )}
         </div>
       </div>
 
-      {/* Delete */}
+      {/* Delete Action */}
       <button
         onClick={() => onDelete(entry.id)}
-        className="shrink-0 rounded-md p-1.5 text-surface-300 opacity-0 transition-all hover:bg-red-50 hover:text-red-500 group-hover:opacity-100 dark:text-surface-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+        className="shrink-0 rounded-lg p-2 text-surface-300 opacity-0 transition-all hover:bg-red-50 hover:text-red-500 group-hover:opacity-100 active:scale-95 dark:text-surface-600 dark:hover:bg-red-500/10 dark:hover:text-red-400"
         title="Delete entry"
       >
-        <Trash2 size={13} />
+        <Trash2 size={16} />
       </button>
     </div>
   );
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   EMPTY STATE
+   EMPTY STATES
    ═══════════════════════════════════════════════════════════════ */
 function EmptySubjects({ onAdd }) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-surface-200 bg-surface-50/50 py-20 dark:border-surface-700 dark:bg-surface-800/20">
-      <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-50 dark:bg-brand-950/40">
-        <Layers size={24} className="text-brand-500" />
+    <div className="relative mt-6 flex flex-col items-center justify-center overflow-hidden rounded-3xl border border-surface-200/60 bg-gradient-to-b from-white to-surface-50/50 py-24 shadow-sm dark:border-surface-800/60 dark:from-surface-900 dark:to-surface-900/50">
+      {/* Decorative background blur */}
+      <div className="absolute -left-20 -top-20 h-64 w-64 rounded-full bg-brand-400/10 blur-3xl" />
+      <div className="absolute -bottom-20 -right-20 h-64 w-64 rounded-full bg-blue-400/10 blur-3xl" />
+
+      <div className="relative mb-6 flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-brand-100 to-blue-50 shadow-inner ring-1 ring-inset ring-white dark:from-brand-900/40 dark:to-blue-900/20 dark:ring-white/5">
+        <Layers
+          size={32}
+          className="text-brand-600 dark:text-brand-400"
+          strokeWidth={1.5}
+        />
       </div>
-      <h3 className="text-base font-bold text-surface-800 dark:text-white">
-        No subjects yet
+      <h3 className="relative text-xl font-extrabold tracking-tight text-surface-900 dark:text-white">
+        No subjects tracked yet
       </h3>
-      <p className="mt-1 max-w-xs text-center text-xs text-surface-400">
-        Add your first subject to start tracking lecture progress, topics
-        covered, and syllabus completion.
+      <p className="relative mt-2 max-w-sm text-center text-[14px] text-surface-500 dark:text-surface-400">
+        Create your first subject tab to beautifully organize your lectures,
+        track topics, and monitor syllabus progression.
       </p>
       <button
         onClick={onAdd}
-        className="mt-5 flex items-center gap-1.5 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-brand-600/20 transition-all hover:bg-brand-700 hover:shadow-md active:scale-[0.97]"
+        className="relative mt-8 flex items-center gap-2 rounded-xl bg-surface-900 px-6 py-3 text-[14px] font-semibold text-white shadow-md transition-all hover:bg-surface-800 hover:shadow-lg hover:shadow-surface-900/20 active:scale-[0.98] dark:bg-white dark:text-surface-900 dark:hover:bg-surface-100"
       >
-        <Plus size={14} />
-        Add Subject
+        <Plus size={18} strokeWidth={2.5} />
+        Create First Subject
       </button>
     </div>
   );
@@ -353,23 +371,27 @@ function EmptySubjects({ onAdd }) {
 
 function EmptyEntries({ subjectName, onAdd }) {
   return (
-    <div className="flex flex-col items-center justify-center py-16 text-center">
-      <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-surface-100 dark:bg-surface-800">
-        <BookOpen size={20} className="text-surface-400" />
+    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-surface-200 bg-surface-50/50 py-16 text-center dark:border-surface-700/60 dark:bg-surface-800/20">
+      <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-white shadow-sm ring-1 ring-inset ring-surface-200 dark:bg-surface-800 dark:ring-surface-700">
+        <BookOpen
+          size={24}
+          className="text-surface-400 dark:text-surface-500"
+          strokeWidth={1.5}
+        />
       </div>
-      <p className="text-sm font-semibold text-surface-600 dark:text-surface-300">
+      <p className="text-[15px] font-bold text-surface-800 dark:text-white">
         No lectures logged for {subjectName}
       </p>
-      <p className="mt-1 max-w-xs text-xs text-surface-400">
-        Start by adding your first lecture entry with the date, topic, and pages
-        covered.
+      <p className="mt-1.5 max-w-sm text-[13px] text-surface-500 dark:text-surface-400">
+        Keep track of your classes by adding your first lecture entry with the
+        date, topic, and pages covered.
       </p>
       <button
         onClick={onAdd}
-        className="mt-4 flex items-center gap-1.5 rounded-lg bg-brand-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition-all hover:bg-brand-700 active:scale-[0.97]"
+        className="mt-6 flex items-center gap-2 rounded-xl bg-white px-5 py-2.5 text-[13px] font-bold text-surface-700 shadow-sm ring-1 ring-inset ring-surface-200 transition-all hover:bg-surface-50 hover:text-surface-900 active:scale-[0.98] dark:bg-surface-800 dark:text-surface-300 dark:ring-surface-700 dark:hover:bg-surface-700 dark:hover:text-white"
       >
-        <Plus size={12} />
-        Add Lecture Entry
+        <Plus size={16} strokeWidth={2.5} />
+        Log First Lecture
       </button>
     </div>
   );
@@ -388,12 +410,12 @@ export default function SubjectTrackerPage() {
   const [editName, setEditName] = useState("");
   const editRef = useRef(null);
 
-  /* Persist to localStorage on every change */
+  /* Persist to localStorage */
   useEffect(() => {
     saveSubjects(subjects);
   }, [subjects]);
 
-  /* Derived active ID — falls back to first subject if selection is invalid */
+  /* Derived active ID */
   const activeId = useMemo(() => {
     if (subjects.length === 0) return null;
     if (selectedId && subjects.find((s) => s.id === selectedId))
@@ -418,7 +440,7 @@ export default function SubjectTrackerPage() {
     );
   }, [activeSubject, search]);
 
-  /* ── Subject CRUD ── */
+  /* ── CRUD Methods ── */
   const addSubject = useCallback((name) => {
     const newSub = { id: uid(), name, entries: [], createdAt: Date.now() };
     setSubjects((prev) => {
@@ -453,17 +475,16 @@ export default function SubjectTrackerPage() {
     setEditName("");
   }, [editingId, editName]);
 
-  /* ── Entry CRUD ── */
   const addEntry = useCallback(
-    ({ date, topic, pages }) => {
+    (entryData) => {
       if (!activeId) return;
       setSubjects((prev) =>
         prev.map((s) => {
           if (s.id !== activeId) return s;
-          const entries = [
-            { id: uid(), date, topic, pages },
-            ...s.entries,
-          ].slice(0, MAX_ENTRIES);
+          const entries = [{ id: uid(), ...entryData }, ...s.entries].slice(
+            0,
+            MAX_ENTRIES
+          );
           return { ...s, entries };
         })
       );
@@ -484,7 +505,7 @@ export default function SubjectTrackerPage() {
     [activeId]
   );
 
-  /* ── Stats for active subject ── */
+  /* ── Stats ── */
   const stats = useMemo(() => {
     if (!activeSubject) return null;
     const entries = activeSubject.entries;
@@ -496,17 +517,17 @@ export default function SubjectTrackerPage() {
   return (
     <AnimatedPage>
       {/* ── Page Header ── */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-brand-600 to-brand-700 shadow-md shadow-brand-600/20">
-            <BookOpen size={18} className="text-white" />
+      <div className="mb-8 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+        <div className="flex items-center gap-4">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-500 to-indigo-600 shadow-lg shadow-brand-500/20 ring-1 ring-inset ring-white/20">
+            <BookOpen size={24} className="text-white drop-shadow-sm" />
           </div>
           <div>
-            <h1 className="text-xl font-extrabold tracking-tight text-surface-900 dark:text-white">
-              Subject Tracker
+            <h1 className="text-2xl font-black tracking-tight text-surface-900 dark:text-white">
+              Syllabus Tracker
             </h1>
-            <p className="text-xs text-surface-400">
-              Log lectures, track topics &amp; syllabus progress
+            <p className="mt-1 text-[14px] font-medium text-surface-500 dark:text-surface-400">
+              Manage your subjects, log lectures, and monitor progress.
             </p>
           </div>
         </div>
@@ -514,9 +535,9 @@ export default function SubjectTrackerPage() {
         {subjects.length > 0 && (
           <button
             onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-1.5 self-start rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-brand-600/20 transition-all hover:bg-brand-700 hover:shadow-md active:scale-[0.97] sm:self-auto"
+            className="flex items-center gap-2 self-start rounded-xl bg-surface-900 px-5 py-2.5 text-[14px] font-semibold text-white shadow-md transition-all hover:bg-surface-800 hover:shadow-lg hover:shadow-surface-900/20 active:scale-[0.98] sm:self-auto dark:bg-white dark:text-surface-900 dark:hover:bg-surface-100"
           >
-            <Plus size={14} />
+            <Plus size={16} strokeWidth={2.5} />
             Add Subject
           </button>
         )}
@@ -525,10 +546,10 @@ export default function SubjectTrackerPage() {
       {subjects.length === 0 ? (
         <EmptySubjects onAdd={() => setShowAddModal(true)} />
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-surface-200/80 bg-white shadow-sm dark:border-surface-800 dark:bg-surface-900">
-          {/* ── Subject Tabs ── */}
-          <div className="border-b border-surface-100 bg-surface-50/60 dark:border-surface-800 dark:bg-surface-800/30">
-            <div className="flex items-center gap-1 overflow-x-auto px-3 pt-2 scrollbar-hide">
+        <div className="flex flex-col gap-6">
+          {/* ── Sleek Modern Tabs ── */}
+          <div className="relative">
+            <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide">
               {subjects.map((sub) => {
                 const isActive = sub.id === activeId;
                 const isEditing = sub.id === editingId;
@@ -536,10 +557,10 @@ export default function SubjectTrackerPage() {
                 return (
                   <div
                     key={sub.id}
-                    className={`group relative flex shrink-0 items-center rounded-t-lg transition-all ${
+                    className={`group relative flex shrink-0 items-center rounded-xl transition-all duration-200 ${
                       isActive
-                        ? "bg-white dark:bg-surface-900"
-                        : "hover:bg-surface-100/70 dark:hover:bg-surface-700/30"
+                        ? "bg-white shadow-sm ring-1 ring-inset ring-surface-200 dark:bg-surface-800 dark:ring-surface-700"
+                        : "bg-transparent hover:bg-surface-100 dark:hover:bg-surface-800/60"
                     }`}
                   >
                     {isEditing ? (
@@ -557,7 +578,7 @@ export default function SubjectTrackerPage() {
                           }
                         }}
                         maxLength={50}
-                        className="mx-1 my-1 w-28 rounded-md border border-brand-300 bg-white px-2 py-1 text-xs font-medium text-surface-900 outline-none focus:ring-2 focus:ring-brand-200 dark:border-brand-600 dark:bg-surface-800 dark:text-white"
+                        className="mx-1 my-1 w-32 rounded-lg border-0 bg-surface-100 px-3 py-1.5 text-[13px] font-bold text-surface-900 outline-none ring-2 ring-brand-500 dark:bg-surface-900 dark:text-white"
                       />
                     ) : (
                       <button
@@ -567,20 +588,19 @@ export default function SubjectTrackerPage() {
                           setSearch("");
                         }}
                         onDoubleClick={() => startEdit(sub)}
-                        className={`flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold transition-colors ${
+                        className={`flex items-center gap-2 px-4 py-2.5 text-[14px] font-semibold transition-colors ${
                           isActive
                             ? "text-brand-600 dark:text-brand-400"
-                            : "text-surface-500 hover:text-surface-700 dark:text-surface-400 dark:hover:text-surface-200"
+                            : "text-surface-600 hover:text-surface-900 dark:text-surface-400 dark:hover:text-surface-200"
                         }`}
                         title="Click to select · Double-click to rename"
                       >
-                        <BookOpen size={12} />
                         {sub.name}
                         <span
-                          className={`ml-0.5 rounded-md px-1.5 py-0.5 text-[10px] font-bold tabular-nums ${
+                          className={`ml-1 flex h-5 items-center justify-center rounded-md px-1.5 text-[11px] font-bold tabular-nums ${
                             isActive
-                              ? "bg-brand-50 text-brand-600 dark:bg-brand-950/40 dark:text-brand-400"
-                              : "bg-surface-100 text-surface-400 dark:bg-surface-700 dark:text-surface-500"
+                              ? "bg-brand-100 text-brand-700 dark:bg-brand-900/40 dark:text-brand-300"
+                              : "bg-surface-200/60 text-surface-500 dark:bg-surface-700 dark:text-surface-400"
                           }`}
                         >
                           {sub.entries.length}
@@ -588,154 +608,135 @@ export default function SubjectTrackerPage() {
                       </button>
                     )}
 
-                    {/* Delete tab (on hover) */}
+                    {/* Delete Tab Button */}
                     {!isEditing && (
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           deleteSubject(sub.id);
                         }}
-                        className="mr-1 rounded p-0.5 text-surface-300 opacity-0 transition-all hover:bg-red-50 hover:text-red-500 group-hover:opacity-100 dark:text-surface-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
-                        title={`Remove ${sub.name}`}
+                        className="mr-2 rounded-md p-1 text-surface-400 opacity-0 transition-all hover:bg-red-100 hover:text-red-600 group-hover:opacity-100 dark:text-surface-500 dark:hover:bg-red-900/30 dark:hover:text-red-400"
+                        title={`Delete ${sub.name}`}
                       >
-                        <X size={12} />
+                        <X size={14} strokeWidth={2.5} />
                       </button>
-                    )}
-
-                    {/* Active indicator line */}
-                    {isActive && (
-                      <div className="absolute bottom-0 left-2 right-2 h-0.5 rounded-full bg-brand-600 dark:bg-brand-400" />
                     )}
                   </div>
                 );
               })}
-
-              {/* Inline add tab button */}
-              {subjects.length < MAX_SUBJECTS && (
-                <button
-                  onClick={() => setShowAddModal(true)}
-                  className="ml-1 flex shrink-0 items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-surface-400 transition-colors hover:bg-surface-100 hover:text-surface-600 dark:hover:bg-surface-700 dark:hover:text-surface-300"
-                >
-                  <Plus size={12} />
-                  Add
-                </button>
-              )}
             </div>
+            {/* Soft fade for horizontal scroll */}
+            <div className="pointer-events-none absolute bottom-2 right-0 top-0 w-12 bg-gradient-to-l from-surface-50 to-transparent dark:from-surface-950" />
           </div>
 
-          {/* ── Content Panel ── */}
+          {/* ── Content Area ── */}
           {activeSubject && (
-            <div className="p-5 sm:p-6">
-              {/* Subject header + stats */}
-              <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <h2 className="text-lg font-extrabold tracking-tight text-surface-900 dark:text-white">
-                    {activeSubject.name}
-                  </h2>
-                  <div className="mt-1 flex items-center gap-3 text-[11px] font-medium text-surface-400">
+            <div className="rounded-2xl border border-surface-200/80 bg-white shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:border-surface-800/60 dark:bg-surface-900">
+              <div className="p-6">
+                {/* Header & Controls */}
+                <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h2 className="text-xl font-extrabold tracking-tight text-surface-900 dark:text-white">
+                      {activeSubject.name} Overview
+                    </h2>
                     {stats && (
-                      <>
-                        <span className="flex items-center gap-1">
-                          <Hash size={11} />
-                          {stats.total} lecture{stats.total !== 1 ? "s" : ""}{" "}
-                          logged
+                      <div className="mt-1.5 flex flex-wrap items-center gap-4 text-[13px] font-semibold text-surface-500 dark:text-surface-400">
+                        <span className="flex items-center gap-1.5">
+                          <Hash size={14} className="text-surface-400" />
+                          {stats.total} lecture{stats.total !== 1 ? "s" : ""}
                         </span>
                         {stats.latest && (
-                          <span className="flex items-center gap-1">
-                            <Calendar size={11} />
-                            Last: {formatDate(stats.latest)}
+                          <span className="flex items-center gap-1.5">
+                            <Calendar size={14} className="text-surface-400" />
+                            Last updated:{" "}
+                            <span className="text-surface-700 dark:text-surface-300">
+                              {formatDate(stats.latest)}
+                            </span>
                           </span>
                         )}
-                      </>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    {/* Search Bar */}
+                    {activeSubject.entries.length > 2 && (
+                      <div className="relative">
+                        <Search
+                          size={16}
+                          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-surface-400"
+                        />
+                        <input
+                          type="text"
+                          value={search}
+                          onChange={(e) => setSearch(e.target.value)}
+                          placeholder="Search topics..."
+                          className="w-full min-w-[200px] rounded-xl border border-surface-200 bg-surface-50 py-2 pl-9 pr-4 text-[13px] font-medium text-surface-900 outline-none transition-all placeholder:text-surface-500 focus:border-brand-500 focus:bg-white focus:ring-4 focus:ring-brand-500/10 dark:border-surface-700 dark:bg-surface-800/50 dark:text-white dark:focus:border-brand-500 dark:focus:bg-surface-900"
+                        />
+                      </div>
+                    )}
+
+                    {/* Toggle Add Form */}
+                    {!showEntryForm && (
+                      <button
+                        onClick={() => setShowEntryForm(true)}
+                        className="flex shrink-0 items-center gap-2 rounded-xl bg-brand-50 px-4 py-2 text-[13px] font-bold text-brand-700 transition-colors hover:bg-brand-100 active:scale-95 dark:bg-brand-500/10 dark:text-brand-400 dark:hover:bg-brand-500/20"
+                      >
+                        <Plus size={16} strokeWidth={2.5} />
+                        Add Entry
+                      </button>
                     )}
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  {/* Search */}
-                  {activeSubject.entries.length > 3 && (
-                    <div className="relative">
-                      <Search
-                        size={13}
-                        className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-surface-400"
-                      />
-                      <input
-                        type="text"
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        placeholder="Search entries…"
-                        className="w-44 rounded-lg border border-surface-200 bg-surface-50/80 py-1.5 pl-8 pr-3 text-xs text-surface-700 outline-none transition-all placeholder:text-surface-400 focus:border-brand-300 focus:ring-2 focus:ring-brand-100 dark:border-surface-700 dark:bg-surface-800/60 dark:text-surface-200 dark:placeholder:text-surface-500 dark:focus:border-brand-600 dark:focus:ring-brand-900/30"
-                      />
-                    </div>
-                  )}
-
-                  {/* Add entry toggle */}
-                  {!showEntryForm && (
-                    <button
-                      onClick={() => setShowEntryForm(true)}
-                      className="flex items-center gap-1.5 rounded-lg bg-brand-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm transition-all hover:bg-brand-700 active:scale-[0.97]"
-                    >
-                      <Plus size={13} />
-                      Add Entry
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Inline add form */}
-              {showEntryForm && (
-                <div className="mb-5">
-                  <AddEntryForm
-                    onAdd={(entry) => {
-                      addEntry(entry);
-                    }}
-                    onCancel={() => setShowEntryForm(false)}
-                  />
-                </div>
-              )}
-
-              {/* Entries list */}
-              {activeSubject.entries.length === 0 ? (
-                <EmptyEntries
-                  subjectName={activeSubject.name}
-                  onAdd={() => setShowEntryForm(true)}
-                />
-              ) : filteredEntries.length === 0 ? (
-                <div className="py-12 text-center">
-                  <Search
-                    size={20}
-                    className="mx-auto mb-2 text-surface-300 dark:text-surface-600"
-                  />
-                  <p className="text-sm font-medium text-surface-400">
-                    No entries match &ldquo;{search}&rdquo;
-                  </p>
-                </div>
-              ) : (
-                <div className="divide-y divide-surface-100/80 dark:divide-surface-800/60">
-                  {/* Column headers */}
-                  <div className="flex items-center gap-3 px-3 pb-2">
-                    <div className="w-7" />
-                    <div className="flex flex-1 items-center gap-6 text-[10px] font-bold uppercase tracking-wider text-surface-300 dark:text-surface-600">
-                      <span>Topic</span>
-                    </div>
-                  </div>
-
-                  {filteredEntries.map((entry, i) => (
-                    <EntryRow
-                      key={entry.id}
-                      entry={entry}
-                      index={i}
-                      onDelete={deleteEntry}
+                {/* The Add Form */}
+                {showEntryForm && (
+                  <div className="mb-6">
+                    <AddEntryForm
+                      onAdd={addEntry}
+                      onCancel={() => setShowEntryForm(false)}
                     />
-                  ))}
-                </div>
-              )}
+                  </div>
+                )}
+
+                {/* Entry List Grid/Rows */}
+                {activeSubject.entries.length === 0 ? (
+                  <EmptyEntries
+                    subjectName={activeSubject.name}
+                    onAdd={() => setShowEntryForm(true)}
+                  />
+                ) : filteredEntries.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-16 text-center">
+                    <div className="mb-3 rounded-full bg-surface-100 p-3 dark:bg-surface-800">
+                      <Search size={24} className="text-surface-400" />
+                    </div>
+                    <p className="text-[15px] font-bold text-surface-900 dark:text-white">
+                      No results found
+                    </p>
+                    <p className="mt-1 text-[13px] font-medium text-surface-500">
+                      We couldn&apos;t find any entries matching &ldquo;{search}
+                      &rdquo;
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2.5 rounded-xl bg-surface-50/50 p-2 dark:bg-surface-800/20">
+                    {filteredEntries.map((entry, i) => (
+                      <EntryRow
+                        key={entry.id}
+                        entry={entry}
+                        index={i}
+                        onDelete={deleteEntry}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
       )}
 
-      {/* Add Subject Modal */}
+      {/* Modals */}
       <AddSubjectModal
         open={showAddModal}
         onClose={() => setShowAddModal(false)}

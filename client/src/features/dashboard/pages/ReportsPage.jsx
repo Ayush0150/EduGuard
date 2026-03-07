@@ -2,10 +2,10 @@
  * ReportsPage – Comprehensive analytics, event history, and multi-format export
  * ──────────────────────────────────────────────────────────────────────────────
  * Sections:
- *  1. Report Filters     (date range, report type, search)
- *  2. Summary Preview    (6 metric cards)
- *  3. Paginated Table    (event log with sorting)
- *  4. Export / Download   (PDF, Excel .xlsx, CSV, JSON)
+ * 1. Report Filters     (date range, report type, search)
+ * 2. Summary Preview    (6 metric cards)
+ * 3. Paginated Table    (event log with sorting)
+ * 4. Export / Download   (PDF, Excel .xlsx, CSV, JSON)
  */
 
 import {
@@ -91,43 +91,31 @@ const REPORT_TYPES = [
 
 const SEVERITY_STYLES = {
   critical: {
-    bg: "bg-red-100 dark:bg-red-900/30",
-    text: "text-red-700 dark:text-red-400",
-    dot: "bg-red-500",
+    bg: "bg-red-100 dark:bg-red-500/10",
+    text: "text-red-600 dark:text-red-400",
+    dot: "bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.8)]",
     badge:
-      "bg-red-50 text-red-700 ring-red-200/60 dark:bg-red-900/20 dark:text-red-400 dark:ring-red-800/40",
+      "bg-red-50 text-red-700 ring-red-200/60 dark:bg-red-500/10 dark:text-red-400 dark:ring-red-900/30",
   },
   warning: {
-    bg: "bg-amber-100 dark:bg-amber-900/30",
-    text: "text-amber-700 dark:text-amber-400",
-    dot: "bg-amber-500",
+    bg: "bg-amber-100 dark:bg-amber-500/10",
+    text: "text-amber-600 dark:text-amber-400",
+    dot: "bg-amber-500 shadow-[0_0_6px_rgba(245,158,11,0.8)]",
     badge:
-      "bg-amber-50 text-amber-700 ring-amber-200/60 dark:bg-amber-900/20 dark:text-amber-400 dark:ring-amber-800/40",
+      "bg-amber-50 text-amber-700 ring-amber-200/60 dark:bg-amber-500/10 dark:text-amber-400 dark:ring-amber-900/30",
   },
   info: {
-    bg: "bg-blue-100 dark:bg-blue-900/30",
-    text: "text-blue-700 dark:text-blue-400",
-    dot: "bg-blue-500",
+    bg: "bg-blue-100 dark:bg-blue-500/10",
+    text: "text-blue-600 dark:text-blue-400",
+    dot: "bg-blue-500 shadow-[0_0_6px_rgba(59,130,246,0.8)]",
     badge:
-      "bg-blue-50 text-blue-700 ring-blue-200/60 dark:bg-blue-900/20 dark:text-blue-400 dark:ring-blue-800/40",
+      "bg-blue-50 text-blue-700 ring-blue-200/60 dark:bg-blue-500/10 dark:text-blue-400 dark:ring-blue-900/30",
   },
 };
 
 const ROWS_PER_PAGE = 15;
 
 /* Helpers */
-function formatTs(ts) {
-  const d = new Date(ts);
-  return d.toLocaleString("en-IN", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: true,
-  });
-}
 
 function formatDate(ts) {
   return new Date(ts).toLocaleDateString("en-IN", {
@@ -470,54 +458,56 @@ function SummaryCard({ icon: Icon, label, value, sub, color }) {
     brand: {
       iconBg:
         "bg-gradient-to-br from-brand-500 to-brand-600 shadow-brand-500/25",
-      ring: "ring-brand-100 dark:ring-brand-900/40",
+      ring: "ring-brand-500/20 dark:ring-brand-400/20",
     },
     red: {
       iconBg: "bg-gradient-to-br from-red-500 to-red-600 shadow-red-500/25",
-      ring: "ring-red-100 dark:ring-red-900/40",
+      ring: "ring-red-500/20 dark:ring-red-400/20",
     },
     amber: {
       iconBg:
         "bg-gradient-to-br from-amber-500 to-amber-600 shadow-amber-500/25",
-      ring: "ring-amber-100 dark:ring-amber-900/40",
+      ring: "ring-amber-500/20 dark:ring-amber-400/20",
     },
     blue: {
       iconBg: "bg-gradient-to-br from-blue-500 to-blue-600 shadow-blue-500/25",
-      ring: "ring-blue-100 dark:ring-blue-900/40",
+      ring: "ring-blue-500/20 dark:ring-blue-400/20",
     },
     emerald: {
       iconBg:
         "bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-emerald-500/25",
-      ring: "ring-emerald-100 dark:ring-emerald-900/40",
+      ring: "ring-emerald-500/20 dark:ring-emerald-400/20",
     },
     violet: {
       iconBg:
         "bg-gradient-to-br from-violet-500 to-violet-600 shadow-violet-500/25",
-      ring: "ring-violet-100 dark:ring-violet-900/40",
+      ring: "ring-violet-500/20 dark:ring-violet-400/20",
     },
   };
   const pal = colors[color] || colors.brand;
 
   return (
     <div
-      className={`group relative overflow-hidden rounded-2xl border border-surface-200/80 bg-white p-5 shadow-sm ring-1 ring-inset transition-all hover:shadow-md dark:border-surface-800 dark:bg-surface-900 ${pal.ring}`}
+      className={`group relative overflow-hidden rounded-2xl border border-surface-200/60 bg-white/80 p-5 shadow-[0_4px_20px_rgb(0,0,0,0.03)] backdrop-blur-xl ring-1 ring-inset transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_8px_30px_rgb(0,0,0,0.06)] dark:border-surface-700/50 dark:bg-surface-900/60 dark:shadow-[0_4px_20px_rgb(0,0,0,0.2)] dark:hover:shadow-[0_8px_30px_rgb(0,0,0,0.3)] ${pal.ring}`}
     >
       <div className="flex items-start justify-between">
-        <div className="space-y-2">
-          <p className="text-xs font-bold uppercase tracking-wider text-surface-400">
+        <div className="space-y-1">
+          <p className="text-[11px] font-bold uppercase tracking-wider text-surface-500 dark:text-surface-400">
             {label}
           </p>
           <p className="text-3xl font-black tabular-nums tracking-tight text-surface-900 dark:text-white">
             {value}
           </p>
           {sub && (
-            <p className="text-[11px] font-semibold text-surface-400">{sub}</p>
+            <p className="mt-1 text-[11px] font-medium text-surface-500 dark:text-surface-400">
+              {sub}
+            </p>
           )}
         </div>
         <div
-          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl shadow-lg ${pal.iconBg}`}
+          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl shadow-inner ring-1 ring-inset ring-white/20 ${pal.iconBg}`}
         >
-          <Icon size={20} className="text-white" />
+          <Icon size={20} className="text-white drop-shadow-sm" />
         </div>
       </div>
     </div>
@@ -539,33 +529,33 @@ function FilterBar({
   totalAll,
 }) {
   return (
-    <div className="rounded-2xl border border-surface-200/80 bg-white shadow-sm dark:border-surface-800 dark:bg-surface-900">
-      <div className="flex items-center gap-2.5 border-b border-surface-100 px-6 py-4 dark:border-surface-800">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-brand-500 to-brand-600 shadow-sm">
-          <Filter size={15} className="text-white" />
+    <div className="rounded-2xl border border-surface-200/60 bg-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl dark:border-surface-700/50 dark:bg-surface-900/60 dark:shadow-[0_8px_30px_rgb(0,0,0,0.2)]">
+      <div className="flex items-center gap-3 border-b border-surface-100/80 bg-surface-50/50 px-6 py-4 dark:border-surface-800/60 dark:bg-surface-800/20">
+        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 shadow-inner ring-1 ring-inset ring-white/20">
+          <Filter size={16} className="text-white drop-shadow-sm" />
         </div>
         <div>
-          <h3 className="text-sm font-bold text-surface-800 dark:text-white">
+          <h3 className="text-[14px] font-bold tracking-tight text-surface-900 dark:text-white">
             Report Filters
           </h3>
-          <p className="text-[10px] font-semibold text-surface-400">
+          <p className="text-[11px] font-medium text-surface-500 dark:text-surface-400">
             {totalFiltered === totalAll
               ? `Showing all ${totalAll} events`
-              : `${totalFiltered} of ${totalAll} events`}
+              : `${totalFiltered} of ${totalAll} events matching criteria`}
           </p>
         </div>
       </div>
 
-      <div className="grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-5 p-6 sm:grid-cols-2 lg:grid-cols-4">
         {/* Report Type */}
-        <div>
-          <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-surface-500">
+        <div className="group">
+          <label className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-surface-500 group-focus-within:text-brand-600 transition-colors dark:group-focus-within:text-brand-400">
             Report Type
           </label>
           <select
             value={reportType}
             onChange={(e) => setReportType(e.target.value)}
-            className="w-full rounded-xl border border-surface-200 bg-surface-50 px-3.5 py-2.5 text-sm font-semibold text-surface-800 outline-none transition-colors focus:border-brand-400 focus:ring-2 focus:ring-brand-100 dark:border-surface-700 dark:bg-surface-800 dark:text-surface-200 dark:focus:border-brand-500 dark:focus:ring-brand-900/40"
+            className="w-full appearance-none rounded-xl border border-surface-200 bg-surface-50 px-4 py-2.5 text-[13px] font-bold text-surface-900 outline-none transition-all focus:border-brand-500 focus:bg-white focus:ring-4 focus:ring-brand-500/10 dark:border-surface-700 dark:bg-surface-900 dark:text-white dark:focus:border-brand-500 dark:focus:bg-surface-800"
           >
             {REPORT_TYPES.map((rt) => (
               <option key={rt.value} value={rt.value}>
@@ -576,59 +566,59 @@ function FilterBar({
         </div>
 
         {/* Date From */}
-        <div>
-          <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-surface-500">
+        <div className="group">
+          <label className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-surface-500 group-focus-within:text-brand-600 transition-colors dark:group-focus-within:text-brand-400">
             From Date
           </label>
           <div className="relative">
             <Calendar
-              size={14}
-              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-surface-400"
+              size={16}
+              className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-surface-400 group-focus-within:text-brand-500 transition-colors"
             />
             <input
               type="date"
               value={dateFrom}
               onChange={(e) => setDateFrom(e.target.value)}
-              className="w-full rounded-xl border border-surface-200 bg-surface-50 py-2.5 pl-9 pr-3.5 text-sm font-semibold text-surface-800 outline-none transition-colors focus:border-brand-400 focus:ring-2 focus:ring-brand-100 dark:border-surface-700 dark:bg-surface-800 dark:text-surface-200 dark:focus:border-brand-500 dark:focus:ring-brand-900/40"
+              className="w-full rounded-xl border border-surface-200 bg-surface-50 py-2.5 pl-10 pr-4 text-[13px] font-bold text-surface-900 outline-none transition-all focus:border-brand-500 focus:bg-white focus:ring-4 focus:ring-brand-500/10 dark:border-surface-700 dark:bg-surface-900 dark:text-white dark:focus:border-brand-500 dark:focus:bg-surface-800"
             />
           </div>
         </div>
 
         {/* Date To */}
-        <div>
-          <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-surface-500">
+        <div className="group">
+          <label className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-surface-500 group-focus-within:text-brand-600 transition-colors dark:group-focus-within:text-brand-400">
             To Date
           </label>
           <div className="relative">
             <Calendar
-              size={14}
-              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-surface-400"
+              size={16}
+              className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-surface-400 group-focus-within:text-brand-500 transition-colors"
             />
             <input
               type="date"
               value={dateTo}
               onChange={(e) => setDateTo(e.target.value)}
-              className="w-full rounded-xl border border-surface-200 bg-surface-50 py-2.5 pl-9 pr-3.5 text-sm font-semibold text-surface-800 outline-none transition-colors focus:border-brand-400 focus:ring-2 focus:ring-brand-100 dark:border-surface-700 dark:bg-surface-800 dark:text-surface-200 dark:focus:border-brand-500 dark:focus:ring-brand-900/40"
+              className="w-full rounded-xl border border-surface-200 bg-surface-50 py-2.5 pl-10 pr-4 text-[13px] font-bold text-surface-900 outline-none transition-all focus:border-brand-500 focus:bg-white focus:ring-4 focus:ring-brand-500/10 dark:border-surface-700 dark:bg-surface-900 dark:text-white dark:focus:border-brand-500 dark:focus:bg-surface-800"
             />
           </div>
         </div>
 
         {/* Search */}
-        <div>
-          <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-surface-500">
+        <div className="group">
+          <label className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-surface-500 group-focus-within:text-brand-600 transition-colors dark:group-focus-within:text-brand-400">
             Search Events
           </label>
           <div className="relative">
             <Search
-              size={14}
-              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-surface-400"
+              size={16}
+              className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-surface-400 group-focus-within:text-brand-500 transition-colors"
             />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search by event name…"
-              className="w-full rounded-xl border border-surface-200 bg-surface-50 py-2.5 pl-9 pr-3.5 text-sm font-semibold text-surface-800 outline-none transition-colors placeholder:text-surface-400 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 dark:border-surface-700 dark:bg-surface-800 dark:text-surface-200 dark:placeholder:text-surface-500 dark:focus:border-brand-500 dark:focus:ring-brand-900/40"
+              className="w-full rounded-xl border border-surface-200 bg-surface-50 py-2.5 pl-10 pr-4 text-[13px] font-bold text-surface-900 outline-none transition-all placeholder:text-surface-400 focus:border-brand-500 focus:bg-white focus:ring-4 focus:ring-brand-500/10 dark:border-surface-700 dark:bg-surface-900 dark:text-white dark:placeholder:text-surface-500 dark:focus:border-brand-500 dark:focus:bg-surface-800"
             />
           </div>
         </div>
@@ -636,12 +626,12 @@ function FilterBar({
 
       {/* Clear filters */}
       {(reportType !== "all" || dateFrom || dateTo || search) && (
-        <div className="border-t border-surface-100 px-5 py-3 dark:border-surface-800">
+        <div className="border-t border-surface-100/80 px-6 py-3.5 dark:border-surface-800/60">
           <button
             onClick={onClear}
-            className="text-xs font-bold text-brand-600 transition-colors hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300"
+            className="text-[12px] font-bold text-brand-600 transition-colors hover:text-brand-800 active:scale-95 dark:text-brand-400 dark:hover:text-brand-300"
           >
-            ✕ Clear all filters
+            ✕ Clear all active filters
           </button>
         </div>
       )}
@@ -675,18 +665,18 @@ function DataTable({ events, page, setPage }) {
   }, [totalPages, safePage]);
 
   return (
-    <div className="rounded-2xl border border-surface-200/80 bg-white shadow-sm overflow-hidden dark:border-surface-800 dark:bg-surface-900">
+    <div className="rounded-2xl border border-surface-200/60 bg-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl overflow-hidden dark:border-surface-700/50 dark:bg-surface-900/60 dark:shadow-[0_8px_30px_rgb(0,0,0,0.2)]">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-surface-100 px-6 py-4 dark:border-surface-800">
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500 to-violet-600 shadow-sm">
-            <BarChart3 size={15} className="text-white" />
+      <div className="flex items-center justify-between border-b border-surface-100/80 px-6 py-4 bg-surface-50/50 dark:border-surface-800/60 dark:bg-surface-800/20">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-600 shadow-inner ring-1 ring-inset ring-white/20">
+            <BarChart3 size={16} className="text-white drop-shadow-sm" />
           </div>
           <div>
-            <h3 className="text-sm font-bold text-surface-800 dark:text-white">
-              Event Log
+            <h3 className="text-[14px] font-bold tracking-tight text-surface-900 dark:text-white">
+              Event Log & History
             </h3>
-            <p className="text-[10px] font-semibold text-surface-400">
+            <p className="text-[11px] font-medium text-surface-500 dark:text-surface-400">
               {events.length} record{events.length !== 1 ? "s" : ""} · Page{" "}
               {safePage} of {totalPages}
             </p>
@@ -696,35 +686,39 @@ function DataTable({ events, page, setPage }) {
 
       {/* Table */}
       {events.length === 0 ? (
-        <div className="flex flex-col items-center justify-center gap-3 py-16 text-surface-400 dark:text-surface-500">
-          <Clock className="animate-pulse" size={28} />
-          <p className="text-sm font-semibold">No events match your filters</p>
-          <p className="text-xs">
-            Events will appear here as triggers are detected
+        <div className="flex flex-col items-center justify-center gap-3 py-20 text-surface-400 dark:text-surface-500">
+          <div className="rounded-full bg-surface-100 p-4 dark:bg-surface-800">
+            <Clock className="animate-pulse" size={32} />
+          </div>
+          <p className="text-[15px] font-bold text-surface-900 dark:text-white">
+            No matching events
+          </p>
+          <p className="text-[13px] font-medium text-surface-500">
+            Try adjusting your filters or date range.
           </p>
         </div>
       ) : (
         <>
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
+            <table className="w-full text-left">
               <thead>
-                <tr className="border-b border-surface-100 bg-surface-50/80 dark:border-surface-800 dark:bg-surface-800/50">
-                  <th className="px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-surface-500">
+                <tr className="border-b border-surface-200/60 bg-surface-50/50 dark:border-surface-800/60 dark:bg-surface-800/40">
+                  <th className="px-6 py-4 text-[11px] font-black uppercase tracking-wider text-surface-500 dark:text-surface-400">
                     #
                   </th>
-                  <th className="px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-surface-500">
+                  <th className="px-6 py-4 text-[11px] font-black uppercase tracking-wider text-surface-500 dark:text-surface-400">
                     Event
                   </th>
-                  <th className="hidden px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-surface-500 sm:table-cell">
+                  <th className="hidden px-6 py-4 text-[11px] font-black uppercase tracking-wider text-surface-500 sm:table-cell dark:text-surface-400">
                     Category
                   </th>
-                  <th className="px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-surface-500">
+                  <th className="px-6 py-4 text-[11px] font-black uppercase tracking-wider text-surface-500 dark:text-surface-400">
                     Severity
                   </th>
-                  <th className="hidden px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-surface-500 lg:table-cell">
+                  <th className="hidden px-6 py-4 text-[11px] font-black uppercase tracking-wider text-surface-500 lg:table-cell dark:text-surface-400">
                     Details
                   </th>
-                  <th className="px-6 py-3 text-right text-[10px] font-bold uppercase tracking-wider text-surface-500">
+                  <th className="px-6 py-4 text-right text-[11px] font-black uppercase tracking-wider text-surface-500 dark:text-surface-400">
                     Timestamp
                   </th>
                 </tr>
@@ -739,31 +733,31 @@ function DataTable({ events, page, setPage }) {
                   return (
                     <tr
                       key={ev.id}
-                      className="transition-colors hover:bg-surface-50/50 dark:hover:bg-surface-800/30"
+                      className="group transition-colors hover:bg-surface-50/80 dark:hover:bg-surface-800/30"
                     >
-                      <td className="px-6 py-3.5 text-xs font-bold tabular-nums text-surface-400">
+                      <td className="px-6 py-4 text-[13px] font-bold tabular-nums text-surface-400 dark:text-surface-500">
                         {startIdx + i + 1}
                       </td>
-                      <td className="px-6 py-3.5">
-                        <div className="flex items-center gap-2.5">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
                           <div
-                            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${sevStyle.bg}`}
+                            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${sevStyle.bg}`}
                           >
-                            <EvIcon size={14} className={sevStyle.text} />
+                            <EvIcon size={16} className={sevStyle.text} />
                           </div>
-                          <span className="text-sm font-bold text-surface-800 dark:text-white">
+                          <span className="text-[14px] font-bold text-surface-900 dark:text-white">
                             {def.label}
                           </span>
                         </div>
                       </td>
-                      <td className="hidden px-6 py-3.5 sm:table-cell">
-                        <span className="rounded-full bg-surface-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-surface-600 dark:bg-surface-800 dark:text-surface-400">
+                      <td className="hidden px-6 py-4 sm:table-cell">
+                        <span className="rounded-lg bg-surface-100 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-surface-600 dark:bg-surface-800 dark:text-surface-400">
                           {def.category}
                         </span>
                       </td>
-                      <td className="px-6 py-3.5">
+                      <td className="px-6 py-4">
                         <span
-                          className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ring-1 ring-inset ${sevStyle.badge}`}
+                          className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider ring-1 ring-inset ${sevStyle.badge}`}
                         >
                           <span
                             className={`h-1.5 w-1.5 rounded-full ${sevStyle.dot}`}
@@ -771,14 +765,14 @@ function DataTable({ events, page, setPage }) {
                           {def.severity}
                         </span>
                       </td>
-                      <td className="hidden max-w-[200px] truncate px-6 py-3.5 text-xs font-medium text-surface-500 lg:table-cell">
+                      <td className="hidden max-w-[220px] truncate px-6 py-4 text-[13px] font-medium text-surface-600 dark:text-surface-300 lg:table-cell">
                         {ev.detail || metaToString(ev.meta) || "—"}
                       </td>
-                      <td className="px-6 py-3.5 text-right">
-                        <p className="text-xs font-bold tabular-nums text-surface-700 dark:text-surface-300">
+                      <td className="px-6 py-4 text-right">
+                        <p className="text-[13px] font-bold tabular-nums text-surface-800 dark:text-surface-200">
                           {formatTime(ev.ts)}
                         </p>
-                        <p className="text-[10px] font-semibold text-surface-400">
+                        <p className="mt-0.5 text-[11px] font-medium text-surface-500 dark:text-surface-400">
                           {formatDate(ev.ts)}
                         </p>
                       </td>
@@ -790,25 +784,35 @@ function DataTable({ events, page, setPage }) {
           </div>
 
           {/* Pagination */}
-          <div className="flex items-center justify-between border-t border-surface-100 px-6 py-3.5 dark:border-surface-800">
-            <p className="text-xs font-semibold text-surface-400">
-              Showing {startIdx + 1}–
-              {Math.min(startIdx + ROWS_PER_PAGE, events.length)} of{" "}
-              {events.length}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-t border-surface-100/80 bg-surface-50/30 px-6 py-4 dark:border-surface-800/60 dark:bg-surface-800/20">
+            <p className="text-[12px] font-semibold text-surface-500 dark:text-surface-400">
+              Showing{" "}
+              <span className="text-surface-900 dark:text-white">
+                {startIdx + 1}
+              </span>{" "}
+              to{" "}
+              <span className="text-surface-900 dark:text-white">
+                {Math.min(startIdx + ROWS_PER_PAGE, events.length)}
+              </span>{" "}
+              of{" "}
+              <span className="text-surface-900 dark:text-white">
+                {events.length}
+              </span>{" "}
+              results
             </p>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1.5">
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={safePage <= 1}
-                className="flex h-8 w-8 items-center justify-center rounded-lg border border-surface-200 text-surface-500 transition-colors hover:bg-surface-50 disabled:opacity-30 dark:border-surface-700 dark:hover:bg-surface-800"
+                className="flex h-9 w-9 items-center justify-center rounded-xl border border-surface-200 text-surface-600 transition-all hover:bg-surface-100 active:scale-95 disabled:pointer-events-none disabled:opacity-40 dark:border-surface-700 dark:text-surface-300 dark:hover:bg-surface-800"
               >
-                <ChevronLeft size={14} />
+                <ChevronLeft size={16} strokeWidth={2.5} />
               </button>
               {pageButtons.map((pg, i) =>
                 pg === "..." ? (
                   <span
                     key={`dots-${i}`}
-                    className="px-1 text-xs text-surface-400"
+                    className="px-2 text-[13px] font-bold text-surface-400"
                   >
                     …
                   </span>
@@ -816,10 +820,10 @@ function DataTable({ events, page, setPage }) {
                   <button
                     key={pg}
                     onClick={() => setPage(pg)}
-                    className={`flex h-8 min-w-[2rem] items-center justify-center rounded-lg text-xs font-bold transition-colors ${
+                    className={`flex h-9 min-w-[2.25rem] items-center justify-center rounded-xl text-[13px] font-bold transition-all active:scale-95 ${
                       pg === safePage
-                        ? "bg-brand-500 text-white shadow-sm"
-                        : "border border-surface-200 text-surface-600 hover:bg-surface-50 dark:border-surface-700 dark:text-surface-400 dark:hover:bg-surface-800"
+                        ? "bg-surface-900 text-white shadow-md dark:bg-white dark:text-surface-900"
+                        : "border border-surface-200 text-surface-700 hover:bg-surface-100 dark:border-surface-700 dark:text-surface-300 dark:hover:bg-surface-800"
                     }`}
                   >
                     {pg}
@@ -829,9 +833,9 @@ function DataTable({ events, page, setPage }) {
               <button
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={safePage >= totalPages}
-                className="flex h-8 w-8 items-center justify-center rounded-lg border border-surface-200 text-surface-500 transition-colors hover:bg-surface-50 disabled:opacity-30 dark:border-surface-700 dark:hover:bg-surface-800"
+                className="flex h-9 w-9 items-center justify-center rounded-xl border border-surface-200 text-surface-600 transition-all hover:bg-surface-100 active:scale-95 disabled:pointer-events-none disabled:opacity-40 dark:border-surface-700 dark:text-surface-300 dark:hover:bg-surface-800"
               >
-                <ChevronRight size={14} />
+                <ChevronRight size={16} strokeWidth={2.5} />
               </button>
             </div>
           </div>
@@ -876,80 +880,93 @@ function ExportPanel({ events, summaryData, disabled, classroom }) {
     {
       key: "xlsx",
       label: "Excel (.xlsx)",
-      desc: "Formatted spreadsheet with auto-width columns",
+      desc: "Formatted spreadsheet with columns",
       icon: FileSpreadsheet,
       primary: true,
       color:
-        "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-500/25 focus-visible:ring-emerald-400",
+        "bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-emerald-500/25 ring-emerald-500/50 hover:shadow-emerald-500/40 focus-visible:ring-emerald-400",
     },
     {
       key: "pdf",
       label: "PDF Report",
-      desc: "Professional report with header & summary",
+      desc: "Professional report with summary",
       icon: FileText,
       color:
-        "bg-red-600 hover:bg-red-700 shadow-red-500/25 focus-visible:ring-red-400",
+        "bg-gradient-to-br from-red-500 to-red-600 shadow-red-500/25 ring-red-500/50 hover:shadow-red-500/40 focus-visible:ring-red-400",
     },
     {
       key: "csv",
-      label: "CSV",
-      desc: "Comma-separated for data analysis tools",
+      label: "CSV Export",
+      desc: "Raw comma-separated data",
       icon: ArrowDownToLine,
       color:
-        "bg-blue-600 hover:bg-blue-700 shadow-blue-500/25 focus-visible:ring-blue-400",
+        "bg-gradient-to-br from-blue-500 to-blue-600 shadow-blue-500/25 ring-blue-500/50 hover:shadow-blue-500/40 focus-visible:ring-blue-400",
     },
     {
       key: "json",
-      label: "JSON",
-      desc: "Structured data for API / programmatic use",
+      label: "JSON API",
+      desc: "Structured data for developers",
       icon: FileJson,
       color:
-        "bg-violet-600 hover:bg-violet-700 shadow-violet-500/25 focus-visible:ring-violet-400",
+        "bg-gradient-to-br from-violet-500 to-violet-600 shadow-violet-500/25 ring-violet-500/50 hover:shadow-violet-500/40 focus-visible:ring-violet-400",
     },
   ];
 
   return (
-    <div className="rounded-2xl border border-surface-200/80 bg-white shadow-sm dark:border-surface-800 dark:bg-surface-900">
+    <div className="rounded-2xl border border-surface-200/60 bg-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl dark:border-surface-700/50 dark:bg-surface-900/60 dark:shadow-[0_8px_30px_rgb(0,0,0,0.2)]">
       {/* Header */}
-      <div className="flex items-center gap-2.5 border-b border-surface-100 px-6 py-4 dark:border-surface-800">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-sm">
-          <Download size={15} className="text-white" />
+      <div className="flex items-center gap-3 border-b border-surface-100/80 px-6 py-4 bg-surface-50/50 dark:border-surface-800/60 dark:bg-surface-800/20">
+        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-surface-700 to-surface-900 shadow-inner ring-1 ring-inset ring-white/20 dark:from-surface-600 dark:to-surface-800">
+          <Download size={16} className="text-white drop-shadow-sm" />
         </div>
         <div>
-          <h3 className="text-sm font-bold text-surface-800 dark:text-white">
+          <h3 className="text-[14px] font-bold tracking-tight text-surface-900 dark:text-white">
             Export & Download
           </h3>
-          <p className="text-[10px] font-semibold text-surface-400">
+          <p className="text-[11px] font-medium text-surface-500 dark:text-surface-400">
             {disabled
-              ? "No events to export"
-              : `${events.length} event${events.length !== 1 ? "s" : ""} ready for export`}
+              ? "No events available to export"
+              : `${events.length} event${events.length !== 1 ? "s" : ""} ready for export formatting`}
           </p>
         </div>
       </div>
 
       {/* Format buttons */}
-      <div className="grid gap-3 p-5 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 p-6 sm:grid-cols-2 lg:grid-cols-4">
         {formats.map(({ key, label, desc, icon: FmtIcon, primary, color }) => (
           <button
             key={key}
             onClick={() => handleExport(key)}
             disabled={disabled || exporting !== null}
-            className={`group relative flex flex-col items-start gap-2 rounded-xl px-5 py-4 text-left text-white shadow-lg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none ${color}`}
+            className={`group relative flex flex-col items-start gap-3 rounded-2xl px-5 py-5 text-left text-white shadow-lg ring-1 ring-inset transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none hover:-translate-y-0.5 ${color}`}
           >
             {primary && (
-              <span className="absolute right-3 top-3 rounded-full bg-white/20 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider backdrop-blur-sm">
-                Primary
+              <span className="absolute right-4 top-4 rounded-lg bg-white/25 px-2.5 py-1 text-[9px] font-black uppercase tracking-widest backdrop-blur-md">
+                Recommended
               </span>
             )}
             <div className="flex items-center gap-2">
               {exporting === key ? (
-                <Activity className="animate-spin" size={18} />
+                <Activity
+                  className="animate-spin text-white drop-shadow-md"
+                  size={20}
+                />
               ) : (
-                <FmtIcon size={18} />
+                <FmtIcon
+                  size={20}
+                  className="text-white drop-shadow-md"
+                  strokeWidth={2.5}
+                />
               )}
             </div>
-            <span className="text-sm font-bold">{label}</span>
-            <span className="text-[11px] leading-tight opacity-75">{desc}</span>
+            <div>
+              <span className="block text-[15px] font-bold tracking-tight">
+                {label}
+              </span>
+              <span className="mt-0.5 block text-[12px] font-medium opacity-80">
+                {desc}
+              </span>
+            </div>
           </button>
         ))}
       </div>
@@ -1195,74 +1212,76 @@ export default function ReportsPage() {
   };
 
   return (
-    <AnimatedPage>
+    <AnimatedPage className="pb-16 max-w-[1400px] mx-auto space-y-8">
       {/* ═══ Breadcrumb & Title ═══ */}
-      <div>
-        <div className="flex items-center gap-1.5 text-xs font-medium text-surface-400 mb-3">
+      <div className="border-b border-surface-200/60 pb-6 dark:border-surface-800/60">
+        <div className="flex items-center gap-2 text-[12px] font-bold text-surface-400 mb-4 uppercase tracking-wider">
           <Link
             to="/dashboard"
             className="hover:text-brand-500 transition-colors"
           >
             Dashboard
           </Link>
-          <ChevronRight size={12} />
-          <span className="text-surface-600 dark:text-surface-300">
+          <ChevronRight size={14} strokeWidth={3} />
+          <span className="text-surface-700 dark:text-surface-200">
             Reports
           </span>
         </div>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h1 className="text-3xl font-black tracking-tight text-surface-900 dark:text-white">
               Reports & Analytics
             </h1>
-            <p className="mt-1 text-sm font-medium text-surface-500">
-              Persistent event history, analytics summaries & data export
+            <p className="mt-2 text-[15px] font-medium text-surface-500 dark:text-surface-400">
+              Persistent event history, analytics summaries, and multi-format
+              data export.
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-3">
             <button
               onClick={() => setShowResetModal(true)}
               disabled={resetting || allEvents.length === 0}
               title="Reset all report data"
-              className="flex h-8 w-8 items-center justify-center rounded-full border border-red-200 text-red-500 transition-all hover:bg-red-50 hover:text-red-600 disabled:opacity-40 dark:border-red-800 dark:hover:bg-red-900/30 dark:hover:text-red-400"
+              className="flex h-10 w-10 items-center justify-center rounded-xl border border-red-200 bg-white text-red-500 shadow-sm transition-all hover:bg-red-50 hover:text-red-600 active:scale-95 disabled:opacity-40 disabled:shadow-none dark:border-red-900/30 dark:bg-surface-900 dark:hover:bg-red-500/10 dark:hover:text-red-400"
             >
               {resetting ? (
-                <Loader2 size={14} className="animate-spin" />
+                <Loader2 size={18} className="animate-spin" />
               ) : (
-                <Trash2 size={14} />
+                <Trash2 size={18} strokeWidth={2.5} />
               )}
             </button>
             <button
               onClick={fetchEvents}
               disabled={loading}
               title="Refresh events from database"
-              className="flex h-8 w-8 items-center justify-center rounded-full border border-surface-200 text-surface-500 transition-all hover:bg-surface-50 hover:text-brand-600 disabled:opacity-40 dark:border-surface-700 dark:hover:bg-surface-800 dark:hover:text-brand-400"
+              className="flex h-10 w-10 items-center justify-center rounded-xl border border-surface-200 bg-white text-surface-600 shadow-sm transition-all hover:bg-surface-50 hover:text-brand-600 active:scale-95 disabled:opacity-40 disabled:shadow-none dark:border-surface-700 dark:bg-surface-900 dark:text-surface-300 dark:hover:bg-surface-800 dark:hover:text-brand-400"
             >
               {loading ? (
-                <Loader2 size={14} className="animate-spin" />
+                <Loader2 size={18} className="animate-spin" />
               ) : (
-                <RefreshCw size={14} />
+                <RefreshCw size={18} strokeWidth={2.5} />
               )}
             </button>
-            <span className="flex items-center gap-1.5 rounded-full bg-brand-50 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-brand-600 ring-1 ring-brand-200/60 dark:bg-brand-900/20 dark:text-brand-400 dark:ring-brand-800/40">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand-500" />
+            <div className="h-6 w-px bg-surface-200 dark:bg-surface-700 hidden sm:block mx-1" />
+            <span className="flex items-center gap-2 rounded-xl bg-brand-50 px-4 py-2 text-[12px] font-bold tracking-wide text-brand-700 ring-1 ring-inset ring-brand-200/60 dark:bg-brand-500/10 dark:text-brand-400 dark:ring-brand-900/30">
+              <span className="h-2 w-2 animate-pulse rounded-full bg-brand-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]" />
               {allEvents.length} Total Events
             </span>
             <span
-              className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider ring-1 ring-inset ${
+              className={`flex items-center gap-2 rounded-xl px-4 py-2 text-[12px] font-bold tracking-wide ring-1 ring-inset ${
                 wsStatus === "connected"
-                  ? "bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:ring-emerald-800"
-                  : "bg-red-50 text-red-700 ring-red-200 dark:bg-red-900/20 dark:text-red-400 dark:ring-red-800"
+                  ? "bg-emerald-50 text-emerald-700 ring-emerald-200/60 dark:bg-emerald-500/10 dark:text-emerald-400 dark:ring-emerald-900/30"
+                  : "bg-red-50 text-red-700 ring-red-200/60 dark:bg-red-500/10 dark:text-red-400 dark:ring-red-900/30"
               }`}
             >
               <span
-                className={`h-1.5 w-1.5 rounded-full ${
+                className={`h-2 w-2 rounded-full ${
                   wsStatus === "connected"
-                    ? "bg-emerald-500 animate-pulse"
-                    : "bg-red-500"
+                    ? "bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)]"
+                    : "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]"
                 }`}
               />
-              {wsStatus === "connected" ? "Live" : "Offline"}
+              {wsStatus === "connected" ? "System Live" : "Offline"}
             </span>
           </div>
         </div>
@@ -1270,14 +1289,23 @@ export default function ReportsPage() {
 
       {/* ═══ Error Banner ═══ */}
       {error && (
-        <div className="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-5 py-3 text-sm font-semibold text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400">
-          <XCircle size={16} />
-          Failed to load events from database: {error}
+        <div className="flex items-center gap-3 rounded-2xl border border-red-200/80 bg-gradient-to-r from-red-50 to-white px-6 py-4 shadow-sm dark:border-red-900/40 dark:from-red-950/30 dark:to-surface-900">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-100 dark:bg-red-900/40">
+            <XCircle size={20} className="text-red-600 dark:text-red-400" />
+          </div>
+          <div>
+            <p className="text-[14px] font-bold text-red-900 dark:text-red-300">
+              Failed to load database events
+            </p>
+            <p className="text-[13px] font-medium text-red-700/80 dark:text-red-400/80">
+              {error}
+            </p>
+          </div>
           <button
             onClick={fetchEvents}
-            className="ml-auto text-xs font-bold underline hover:no-underline"
+            className="ml-auto rounded-xl bg-white px-4 py-2 text-[13px] font-bold text-red-700 shadow-sm ring-1 ring-inset ring-red-200 transition-all hover:bg-red-50 active:scale-95 dark:bg-surface-800 dark:text-red-400 dark:ring-red-800/60 dark:hover:bg-surface-700"
           >
-            Retry
+            Retry Connection
           </button>
         </div>
       )}
@@ -1298,7 +1326,7 @@ export default function ReportsPage() {
       />
 
       {/* ═══ Summary Cards ═══ */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-5">
+      <div className="grid grid-cols-2 gap-5 lg:grid-cols-3 xl:grid-cols-5">
         {summaryCards.map((card) => (
           <SummaryCard key={card.label} {...card} />
         ))}
