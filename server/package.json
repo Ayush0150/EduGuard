@@ -10,6 +10,7 @@
     "server": "npm run dev",
     "setup-admin": "node scripts/create-admin.js",
     "create-admin": "node scripts/create-admin.js",
+    "create-demo-user": "node scripts/create-demo-user.js",
     "ensure-admin": "node scripts/ensure-super-admin.js",
     "reset-admin-password": "node scripts/reset-admin-password.js",
     "lint": "echo \"No linter configured\""

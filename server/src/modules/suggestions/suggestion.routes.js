@@ -1,5 +1,9 @@
 import { Router } from "express";
 import {
+  requireAuth,
+  requireRole,
+} from "../../core/middlewares/auth.js";
+import {
   createSuggestion,
   listSpamWords,
   listSuggestions,
@@ -19,9 +23,24 @@ const router = Router();
  * DELETE /:id             — Delete a suggestion
  */
 router.post("/", createSuggestion);
-router.get("/", listSuggestions);
-router.get("/spam-words", listSpamWords);
-router.patch("/:id/status", patchSuggestionStatus);
-router.delete("/:id", removeSuggestion);
+router.get("/", requireAuth, requireRole("ADMIN", "SUPER_ADMIN"), listSuggestions);
+router.get(
+  "/spam-words",
+  requireAuth,
+  requireRole("ADMIN", "SUPER_ADMIN"),
+  listSpamWords
+);
+router.patch(
+  "/:id/status",
+  requireAuth,
+  requireRole("ADMIN", "SUPER_ADMIN"),
+  patchSuggestionStatus
+);
+router.delete(
+  "/:id",
+  requireAuth,
+  requireRole("ADMIN", "SUPER_ADMIN"),
+  removeSuggestion
+);
 
 export const suggestionRouter = router;

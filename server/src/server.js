@@ -4,7 +4,9 @@ import { WebSocketServer } from "ws";
 import { createApp } from "./app.js";
 import { env } from "./core/config/env.js";
 import { connectMongo } from "./core/db/connectMongo.js";
+import { getAuthContextFromToken } from "./core/middlewares/auth.js";
 import { logger } from "./core/utils/logger.js";
+import { saveEvent } from "./modules/events/event.service.js";
 import { SmsCounter } from "./modules/sms/smsCounter.model.js";
 import {
   patchPayloadWithAuthCounters,
@@ -28,9 +30,11 @@ const devices = new Map();
 
 /** @type {Map<string, object>} deviceId → last telemetry snapshot */
 const lastTelemetry = new Map();
+const lastArduinoState = new Map();
 
 const HEARTBEAT_INTERVAL = 10_000; // 10 s ping interval
 const DEVICE_STALE_MS = 15_000; // device silent for 15 s → considered dead
+const WS_AUTH_TIMEOUT_MS = 5_000;
 
 /* ── helpers ─────────────────────────────────────────────── */
 
@@ -43,11 +47,198 @@ function sendJson(socket, payload) {
 function broadcastDashboards(wss, payload) {
   const packet = JSON.stringify(payload);
   wss.clients.forEach((client) => {
-    // Send to every connected client that is NOT a registered device
-    if (client.readyState === 1 && !client.deviceId) {
+    if (
+      client.readyState === 1 &&
+      client.clientType === "dashboard" &&
+      client.isAuthorized === true
+    ) {
       client.send(packet);
     }
   });
+}
+
+function bootstrapDashboardSocket(ws) {
+  devices.forEach((_deviceSocket, deviceId) => {
+    sendJson(ws, {
+      type: "device_status",
+      device: deviceId,
+      online: true,
+    });
+  });
+
+  lastTelemetry.forEach((snapshot, deviceId) => {
+    sendJson(ws, {
+      type: "telemetry",
+      device: deviceId,
+      payload: snapshot.payload,
+      category: snapshot.category,
+      cached: true,
+    });
+  });
+}
+
+function rejectSocket(ws, message, code = 4001) {
+  sendJson(ws, { type: "auth_error", message });
+  ws.close(code, message);
+}
+
+function isAuthorizedDevice(ws, data) {
+  return (
+    ws.clientType === "device" &&
+    ws.isAuthorized === true &&
+    ws.deviceId &&
+    data?.device === ws.deviceId
+  );
+}
+
+function parsePayloadToObject(line) {
+  const trimmed = String(line || "").trim();
+  if (!trimmed || trimmed.startsWith("Waiting")) return {};
+
+  const obj = {};
+  let lastKey = null;
+
+  trimmed.split(",").forEach((part) => {
+    const p = part.trim();
+    if (!p) return;
+
+    if (p.includes("=")) {
+      const i = p.indexOf("=");
+      let key = p.slice(0, i).trim();
+      if (key.includes(":")) key = key.split(":")[1];
+      lastKey = key;
+      obj[lastKey] = p.slice(i + 1).trim();
+      return;
+    }
+
+    if (p.includes(":")) {
+      const i = p.indexOf(":");
+      lastKey = p.slice(0, i).trim();
+      obj[lastKey] = p.slice(i + 1).trim();
+      return;
+    }
+
+    if (lastKey) {
+      obj[lastKey] += `, ${p}`;
+    }
+  });
+
+  return obj;
+}
+
+async function persistDerivedArduinoEvents(device, payload) {
+  const parsed = parsePayloadToObject(payload);
+  const snap = {
+    emergency: parsed.isEmergencyReq === "true",
+    ac: parsed.isACReq === "true",
+    washroom: parsed.isWashroomDirty === "true",
+    absent: parsed.isTeacherAbsent === "true",
+    present: parsed.isPresent === "true",
+    period: parsed.P || null,
+    room: parsed.class || parsed.classroom || device.replace(/^CLASSROOM-/, ""),
+    parsed,
+  };
+
+  const prev = lastArduinoState.get(device);
+  if (!prev) {
+    lastArduinoState.set(device, snap);
+    return;
+  }
+
+  const tasks = [];
+
+  if (snap.emergency && !prev.emergency) {
+    tasks.push(
+      saveEvent({
+        type: "emergency",
+        device,
+        meta: {
+          Room: snap.room || "—",
+          Period: parsed.P || "—",
+          Gas: parsed.GS || "—",
+        },
+      })
+    );
+  }
+
+  if (snap.ac && !prev.ac) {
+    tasks.push(
+      saveEvent({
+        type: "acRequest",
+        device,
+        meta: {
+          Room: snap.room || "—",
+          Period: parsed.P || "—",
+        },
+      })
+    );
+  }
+
+  if (snap.washroom && !prev.washroom) {
+    tasks.push(
+      saveEvent({
+        type: "washroom",
+        device,
+        meta: {
+          "Gas Level": parsed.GS ? `${parsed.GS} ppm` : "—",
+          Room: snap.room || "—",
+          Period: parsed.P || "—",
+        },
+      })
+    );
+  }
+
+  if (snap.absent && !prev.absent) {
+    tasks.push(
+      saveEvent({
+        type: "teacherAbsent",
+        device,
+        meta: {
+          Period: parsed.P || "—",
+          "Time Elapsed": parsed.PT ? `${parsed.PT}s` : "—",
+        },
+      })
+    );
+  }
+
+  if (snap.present && !prev.present) {
+    tasks.push(
+      saveEvent({
+        type: "teacherPresent",
+        device,
+        meta: {
+          Period: parsed.P || "—",
+          "Arrival At": parsed.T || "—",
+        },
+      })
+    );
+  }
+
+  if (snap.period && prev.period && snap.period !== prev.period) {
+    tasks.push(
+      saveEvent({
+        type: "periodChange",
+        device,
+        detail: `Period ${snap.period} started`,
+        meta: {
+          "New Period": snap.period,
+          Previous: prev.period,
+        },
+      })
+    );
+  }
+
+  const results = await Promise.allSettled(tasks);
+  results.forEach((result) => {
+    if (result.status === "rejected") {
+      logger.warn("Derived event persistence failed", {
+        device,
+        error: result.reason?.message || String(result.reason),
+      });
+    }
+  });
+
+  lastArduinoState.set(device, snap);
 }
 
 /* ── bootstrap ───────────────────────────────────────────── */
@@ -110,23 +301,21 @@ async function bootstrap() {
 
   wss.on("connection", (ws) => {
     ws.isAlive = true;
+    ws.isAuthorized = false;
+    ws.clientType = null;
+    ws.user = null;
+    ws.authTimer = setTimeout(() => {
+      if (!ws.isAuthorized && ws.readyState === 1) {
+        rejectSocket(ws, "Authentication required", 4001);
+      }
+    }, WS_AUTH_TIMEOUT_MS);
+
     ws.on("pong", () => {
       ws.isAlive = true;
     });
 
     logger.info("WebSocket client connected", {
       totalClients: wss.clients.size,
-    });
-
-    /* Send last-known telemetry snapshot to new dashboard clients */
-    lastTelemetry.forEach((snapshot, deviceId) => {
-      sendJson(ws, {
-        type: "telemetry",
-        device: deviceId,
-        payload: snapshot.payload,
-        category: snapshot.category,
-        cached: true,
-      });
     });
 
     ws.on("message", async (raw) => {
@@ -137,9 +326,43 @@ async function bootstrap() {
         return; // ignore non-JSON
       }
 
+      if (data.type === "auth") {
+        try {
+          const user = await getAuthContextFromToken(data.token);
+          ws.isAuthorized = true;
+          ws.clientType = "dashboard";
+          ws.user = user;
+          clearTimeout(ws.authTimer);
+          sendJson(ws, {
+            type: "auth_ok",
+            role: user.role,
+            email: user.email,
+          });
+          bootstrapDashboardSocket(ws);
+        } catch (error) {
+          logger.security.unauthorizedAccess({
+            path: "websocket",
+            reason: `Dashboard WS auth failed: ${error.message}`,
+          });
+          rejectSocket(ws, "WebSocket authentication failed", 4001);
+        }
+        return;
+      }
+
       switch (data.type) {
         /* ── REGISTER (ESP32 device) ─────────────────── */
         case "register": {
+          if (
+            env.deviceWsSecret &&
+            String(data.secret || "") !== env.deviceWsSecret
+          ) {
+            logger.security.unauthorizedAccess({
+              path: "websocket",
+              reason: `Device WS auth failed for ${data.device || "unknown device"}`,
+            });
+            return rejectSocket(ws, "Device authentication failed", 4003);
+          }
+
           const id = data.device;
           if (!id) break;
 
@@ -152,6 +375,9 @@ async function bootstrap() {
           devices.set(id, ws);
           ws.deviceId = id;
           ws.lastMessageAt = Date.now();
+          ws.isAuthorized = true;
+          ws.clientType = "device";
+          clearTimeout(ws.authTimer);
           logger.info("Device registered", { device: id });
 
           // Notify dashboards
@@ -165,6 +391,8 @@ async function bootstrap() {
 
         /* ── TELEMETRY (ESP32 → dashboards) ──────────── */
         case "telemetry": {
+          if (!isAuthorizedDevice(ws, data)) break;
+
           let payload = data.payload;
           const category = data.category || "arduino"; // arduino | wifi | gsm | esp
 
@@ -194,6 +422,10 @@ async function bootstrap() {
           const cacheKey = `${data.device}:${category}`;
           lastTelemetry.set(cacheKey, { payload, category });
 
+          if (category === "arduino" && data.device) {
+            await persistDerivedArduinoEvents(data.device, payload);
+          }
+
           // Broadcast to dashboards only
           broadcastDashboards(wss, {
             type: "telemetry",
@@ -206,6 +438,10 @@ async function bootstrap() {
 
         /* ── CONTROL (dashboard → device) ────────────── */
         case "control": {
+          if (ws.clientType !== "dashboard" || ws.isAuthorized !== true) {
+            break;
+          }
+
           const deviceSocket = devices.get(data.device);
           if (deviceSocket && deviceSocket.readyState === 1) {
             // Send RAW command string — ESP32 expects plain text, not JSON
@@ -240,6 +476,8 @@ async function bootstrap() {
 
         /* ── CONTROL ACK (device → dashboards) ──────── */
         case "control_ack": {
+          if (!isAuthorizedDevice(ws, data)) break;
+
           if (ws.deviceId) ws.lastMessageAt = Date.now();
           broadcastDashboards(wss, {
             type: "control_ack",
@@ -257,11 +495,13 @@ async function bootstrap() {
     });
 
     ws.on("close", () => {
+      clearTimeout(ws.authTimer);
       if (ws.deviceId) {
         // Only remove if this socket is still the registered one
         if (devices.get(ws.deviceId) === ws) {
           devices.delete(ws.deviceId);
         }
+        lastArduinoState.delete(ws.deviceId);
         logger.info("Device disconnected", { device: ws.deviceId });
 
         /* ── Mark cached GSM as offline so new clients don't see stale data ── */
@@ -300,8 +540,8 @@ async function bootstrap() {
   });
 
   /* 3. Listen */
-  server.listen(8080, "0.0.0.0", () => {
-    logger.info("Server listening", { port: 8080 });
+  server.listen(env.port, "0.0.0.0", () => {
+    logger.info("Server listening", { port: env.port });
   });
 
   /* 4. Graceful Shutdown */

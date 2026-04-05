@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { requireAuth } from "../../core/middlewares/auth.js";
+import { requireAuth, requireRole } from "../../core/middlewares/auth.js";
 import {
   createEvent,
   deleteAllEvents,
@@ -17,9 +17,14 @@ const router = Router();
  * GET    /stats         — Aggregated counts by event type
  * DELETE /              — Purge all events (requires auth)
  */
-router.post("/", createEvent);
-router.get("/", listEvents);
-router.get("/stats", eventStats);
-router.delete("/", requireAuth, deleteAllEvents);
+router.post("/", requireAuth, requireRole("ADMIN", "SUPER_ADMIN"), createEvent);
+router.get("/", requireAuth, listEvents);
+router.get("/stats", requireAuth, eventStats);
+router.delete(
+  "/",
+  requireAuth,
+  requireRole("ADMIN", "SUPER_ADMIN"),
+  deleteAllEvents
+);
 
 export const eventRouter = router;

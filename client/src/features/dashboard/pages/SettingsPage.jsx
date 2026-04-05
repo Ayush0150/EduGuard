@@ -500,7 +500,7 @@ export default function SettingsPage() {
   const [teacherGrace, setTeacherGrace] = useState(
     Number(initCfg.graceDuration) || 10
   );
-  const [missedCallEnabled, setMissedCallEnabled] = useState(
+  const [, setMissedCallEnabled] = useState(
     initCfg.callEnabled !== undefined ? initCfg.callEnabled === "true" : true
   );
   const [emBuzzerDuration, setEmBuzzerDuration] = useState(

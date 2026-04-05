@@ -28,7 +28,7 @@ function base64UrlDecode(value) {
         .map((char) => `%${char.charCodeAt(0).toString(16).padStart(2, "0")}`)
         .join("")
     );
-  } catch (err) {
+  } catch {
     return null;
   }
 }
@@ -49,7 +49,7 @@ export function decodeJwt(token) {
 
     const json = base64UrlDecode(payload);
     return json ? JSON.parse(json) : null;
-  } catch (err) {
+  } catch {
     return null;
   }
 }

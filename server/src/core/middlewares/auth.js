@@ -23,6 +23,45 @@ function getBearerToken(req) {
   return token;
 }
 
+async function loadActiveUser(userId) {
+  let user = userCache.get(userId);
+
+  if (!user) {
+    user = await User.findById(userId).select("role email isActive").lean();
+
+    if (user && user.isActive) {
+      userCache.set(userId, user);
+    }
+  }
+
+  if (!user || !user.isActive) {
+    const error = new Error("Account is inactive or does not exist");
+    error.code = "USER_INACTIVE";
+    error.status = 401;
+    throw error;
+  }
+
+  return {
+    id: userId,
+    role: user.role,
+    email: user.email,
+  };
+}
+
+export async function getAuthContextFromToken(token) {
+  const payload = verifyAccessToken(token, env.jwtSecret);
+  const userId = payload?.sub || payload?.userId || payload?.id;
+
+  if (!userId) {
+    const error = new Error("Invalid JWT payload");
+    error.code = "INVALID_PAYLOAD";
+    error.status = 401;
+    throw error;
+  }
+
+  return loadActiveUser(userId);
+}
+
 /* =====================================================
    Authentication Middleware
 ===================================================== */
@@ -52,57 +91,7 @@ export async function requireAuth(req, res, next) {
   }
 
   try {
-    const payload = verifyAccessToken(token, env.jwtSecret);
-
-    // Support multiple token formats
-    const userId = payload?.sub || payload?.userId || payload?.id;
-
-    if (!userId) {
-      logger.security.unauthorizedAccess({
-        ip: req.ip,
-        path: req.originalUrl,
-        reason: "Invalid JWT payload",
-      });
-
-      return res.status(401).json({
-        success: false,
-        message: "Unauthorized",
-      });
-    }
-
-    // Try cache first (70-90% hit rate in production)
-    let user = userCache.get(userId);
-
-    // Cache miss - query database
-    if (!user) {
-      user = await User.findById(userId).select("role email isActive").lean();
-
-      // Cache for future requests
-      if (user && user.isActive) {
-        userCache.set(userId, user);
-      }
-    }
-
-    if (!user || !user.isActive) {
-      logger.security.unauthorizedAccess({
-        ip: req.ip,
-        path: req.originalUrl,
-        userId,
-        reason: "User not found or inactive",
-      });
-
-      return res.status(401).json({
-        success: false,
-        message: "Account is inactive or does not exist",
-      });
-    }
-
-    // Attach safe user context
-    req.user = {
-      id: userId,
-      role: user.role,
-      email: user.email,
-    };
+    req.user = await getAuthContextFromToken(token);
 
     next();
   } catch (error) {

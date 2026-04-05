@@ -16,13 +16,10 @@ import {
 } from "lucide-react";
 import { useCallback, useRef, useState } from "react";
 import AnimatedPage from "../../../core/components/AnimatedPage";
-
-const API_BASE =
-  import.meta.env.VITE_API_BASE_URL ??
-  `http://${window.location.hostname}:8080`;
+import { API_BASE_URL } from "../../../core/config/runtime";
 
 const CATEGORIES = [
-  { value: "support", label: "Request Support" },
+  { value: "general", label: "Request Support" },
   { value: "improvement", label: "Suggest Improvement" },
   { value: "bug", label: "Report a Bug" },
   { value: "feature", label: "Feature Request" },
@@ -56,7 +53,7 @@ const GOALS = [
 function ContactForm() {
   const [name, setName] = useState("");
   const [message, setMessage] = useState("");
-  const [category, setCategory] = useState("support");
+  const [category, setCategory] = useState("general");
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState(null);
@@ -72,7 +69,7 @@ function ContactForm() {
       setSubmitting(true);
       setError(null);
       try {
-        const res = await fetch(`${API_BASE}/api/v1/suggestions`, {
+        const res = await fetch(`${API_BASE_URL}/api/v1/suggestions`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -87,7 +84,7 @@ function ContactForm() {
         setSubmitted(true);
         setName("");
         setMessage("");
-        setCategory("support");
+        setCategory("general");
         setTimeout(() => setSubmitted(false), 5000);
       } catch (err) {
         setError(err.message);

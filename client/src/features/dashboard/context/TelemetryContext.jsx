@@ -14,6 +14,11 @@ import {
   useRef,
   useState,
 } from "react";
+import {
+  clearAuthSession,
+  getAccessToken,
+} from "../../../core/auth/tokenStorage";
+import { WS_URL } from "../../../core/config/runtime";
 
 const STORAGE_KEY = "eduguard_telemetry";
 const RECONNECT_BASE = 1000;
@@ -163,10 +168,7 @@ export function TelemetryProvider({ children }) {
   /* ── Device (ESP32) online state — tracks server device_status events ── */
   const [deviceOnline, setDeviceOnline] = useState(false);
 
-  const wsUrl = useMemo(() => {
-    const host = window.location.hostname || "localhost";
-    return `ws://${host}:8080`;
-  }, []);
+  const wsUrl = WS_URL;
 
   /* Throttle localStorage writes for high-frequency telemetry (5 s) */
   useEffect(() => {
@@ -328,9 +330,15 @@ export function TelemetryProvider({ children }) {
     let ws = null;
     let retryDelay = RECONNECT_BASE;
     let retryTimer = null;
+    let shouldReconnect = true;
 
     function openSocket() {
       if (!mounted) return;
+      const token = getAccessToken();
+      if (!token) {
+        setWsStatus("disconnected");
+        return;
+      }
       setWsStatus("connecting");
       ws = new WebSocket(wsUrl);
       wsRef.current = ws;
@@ -340,8 +348,12 @@ export function TelemetryProvider({ children }) {
           ws.close();
           return;
         }
-        setWsStatus("connected");
-        retryDelay = RECONNECT_BASE;
+        ws.send(
+          JSON.stringify({
+            type: "auth",
+            token,
+          })
+        );
       };
 
       ws.onmessage = (event) => {
@@ -353,6 +365,16 @@ export function TelemetryProvider({ children }) {
           return;
         }
         switch (data.type) {
+          case "auth_ok":
+            setWsStatus("connected");
+            retryDelay = RECONNECT_BASE;
+            break;
+          case "auth_error":
+            shouldReconnect = false;
+            clearAuthSession();
+            window.dispatchEvent(new Event("eduguard:auth-expired"));
+            ws.close();
+            break;
           case "telemetry":
             applyPayload(data.payload, data.category);
             break;
@@ -404,8 +426,10 @@ export function TelemetryProvider({ children }) {
         lastArduinoAtRef.current = 0;
         setTelemetryFresh(false);
         setDeviceOnline(false);
-        retryTimer = setTimeout(openSocket, retryDelay);
-        retryDelay = Math.min(retryDelay * 2, RECONNECT_MAX);
+        if (shouldReconnect) {
+          retryTimer = setTimeout(openSocket, retryDelay);
+          retryDelay = Math.min(retryDelay * 2, RECONNECT_MAX);
+        }
       };
     }
 
@@ -509,29 +533,6 @@ export function TelemetryProvider({ children }) {
   const prevSnapRef = useRef({});
   const eventIdRef = useRef(0);
 
-  /* Persist event to backend (fire-and-forget) */
-  const persistEvent = useCallback(
-    (type, detail, meta, ts) => {
-      const apiBase =
-        import.meta.env.VITE_API_BASE_URL ??
-        `http://${window.location.hostname}:8080`;
-      fetch(`${apiBase}/api/v1/events`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type,
-          detail: detail || null,
-          meta: meta || null,
-          device: deviceId,
-          ts,
-        }),
-      }).catch(() => {
-        /* silent — persistence is best-effort */
-      });
-    },
-    [deviceId]
-  );
-
   const pushEvent = useCallback(
     (type, detail, meta) => {
       eventIdRef.current += 1;
@@ -542,9 +543,8 @@ export function TelemetryProvider({ children }) {
           MAX_EVENTS
         )
       );
-      persistEvent(type, detail, meta, ts);
     },
-    [persistEvent]
+    []
   );
 
   /* Rising-edge event detection from telemetry */

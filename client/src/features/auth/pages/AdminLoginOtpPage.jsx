@@ -31,8 +31,6 @@ export default function AdminLoginOtpPage() {
 
   const [otp, setOtp] = useState("");
   const [adminId, setAdminId] = useState("");
-  const [identifier, setIdentifier] = useState("");
-  const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(true);
   const [emailMasked, setEmailMasked] = useState("");
   const [busy, setBusy] = useState(false);
@@ -59,7 +57,6 @@ export default function AdminLoginOtpPage() {
 
   useEffect(() => {
     const stateIdentifier = location.state?.identifier;
-    const statePassword = location.state?.password;
     const stateAdminId = location.state?.adminId;
     const stateRemember = location.state?.remember;
     const stateEmailMasked = location.state?.emailMasked;
@@ -70,8 +67,6 @@ export default function AdminLoginOtpPage() {
       return;
     }
 
-    setIdentifier(stateIdentifier);
-    setPassword(statePassword ?? "");
     setAdminId(stateAdminId);
     setRemember(typeof stateRemember === "boolean" ? stateRemember : true);
     setEmailMasked(stateEmailMasked ?? "");

@@ -34,6 +34,7 @@ export function OtpInput({
     for (let i = 0; i < Math.min(valueStr.length, actualLength); i++) {
       newDigits[i] = valueStr[i] || "";
     }
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLocalDigits(newDigits);
   }, [value, actualLength]);
 

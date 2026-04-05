@@ -36,8 +36,12 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import { getAuthSession } from "../../../core/auth/tokenStorage";
 import AnimatedPage from "../../../core/components/AnimatedPage";
 import PasswordConfirmModal from "../../../core/components/PasswordConfirmModal";
+import { ADMIN_ROLES } from "../../../core/constants";
+import { API_BASE_URL } from "../../../core/config/runtime";
+import { withAuthHeaders } from "../../../core/http/authHeaders";
 import { useTelemetry } from "../context/TelemetryContext";
 
 /* ════════════════════════════════════════════════════════════════
@@ -981,6 +985,8 @@ function ExportPanel({ events, summaryData, disabled, classroom }) {
 export default function ReportsPage() {
   const { events: liveEvents, wsStatus, configParsed } = useTelemetry();
   const classroom = configParsed?.classroom || "—";
+  const currentRole = getAuthSession().user?.role ?? null;
+  const canResetData = ADMIN_ROLES.includes(currentRole);
 
   /* ── DB events ── */
   const [dbEvents, setDbEvents] = useState([]);
@@ -988,16 +994,17 @@ export default function ReportsPage() {
   const [error, setError] = useState(null);
   const fetchIdRef = useRef(0);
 
-  const API_BASE =
-    import.meta.env.VITE_API_BASE_URL ??
-    `http://${window.location.hostname}:8080`;
-
   const fetchEvents = useCallback(async () => {
     const id = ++fetchIdRef.current;
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${API_BASE}/api/v1/events?limit=10000&sort=-ts`);
+      const res = await fetch(
+        `${API_BASE_URL}/api/v1/events?limit=10000&sort=-ts`,
+        {
+          headers: withAuthHeaders(),
+        }
+      );
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
       if (id !== fetchIdRef.current) return; // stale
@@ -1015,7 +1022,7 @@ export default function ReportsPage() {
     } finally {
       if (id === fetchIdRef.current) setLoading(false);
     }
-  }, [API_BASE]);
+  }, []);
 
   useEffect(() => {
     fetchEvents();
@@ -1028,15 +1035,11 @@ export default function ReportsPage() {
   const handleResetData = useCallback(async () => {
     setResetting(true);
     try {
-      const token =
-        localStorage.getItem("eduguard_access_token") ||
-        sessionStorage.getItem("eduguard_access_token");
-      const res = await fetch(`${API_BASE}/api/v1/events`, {
+      const res = await fetch(`${API_BASE_URL}/api/v1/events`, {
         method: "DELETE",
-        headers: {
+        headers: withAuthHeaders({
           "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+        }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setDbEvents([]);
@@ -1045,7 +1048,7 @@ export default function ReportsPage() {
     } finally {
       setResetting(false);
     }
-  }, [API_BASE]);
+  }, []);
 
   /* ── Merge DB events with live events (dedup by type+ts proximity) ── */
   const allEvents = useMemo(() => {
@@ -1238,18 +1241,20 @@ export default function ReportsPage() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <button
-              onClick={() => setShowResetModal(true)}
-              disabled={resetting || allEvents.length === 0}
-              title="Reset all report data"
-              className="flex h-10 w-10 items-center justify-center rounded-xl border border-red-200 bg-white text-red-500 shadow-sm transition-all hover:bg-red-50 hover:text-red-600 active:scale-95 disabled:opacity-40 disabled:shadow-none dark:border-red-900/30 dark:bg-surface-900 dark:hover:bg-red-500/10 dark:hover:text-red-400"
-            >
-              {resetting ? (
-                <Loader2 size={18} className="animate-spin" />
-              ) : (
-                <Trash2 size={18} strokeWidth={2.5} />
-              )}
-            </button>
+            {canResetData ? (
+              <button
+                onClick={() => setShowResetModal(true)}
+                disabled={resetting || allEvents.length === 0}
+                title="Reset all report data"
+                className="flex h-10 w-10 items-center justify-center rounded-xl border border-red-200 bg-white text-red-500 shadow-sm transition-all hover:bg-red-50 hover:text-red-600 active:scale-95 disabled:opacity-40 disabled:shadow-none dark:border-red-900/30 dark:bg-surface-900 dark:hover:bg-red-500/10 dark:hover:text-red-400"
+              >
+                {resetting ? (
+                  <Loader2 size={18} className="animate-spin" />
+                ) : (
+                  <Trash2 size={18} strokeWidth={2.5} />
+                )}
+              </button>
+            ) : null}
             <button
               onClick={fetchEvents}
               disabled={loading}
@@ -1344,15 +1349,17 @@ export default function ReportsPage() {
       />
 
       {/* ═══ Reset Data Modal ═══ */}
-      <PasswordConfirmModal
-        open={showResetModal}
-        title="Reset Report Data"
-        description="All event history will be permanently deleted. This cannot be undone."
-        confirmLabel="Reset All Data"
-        variant="danger"
-        onConfirm={handleResetData}
-        onCancel={() => setShowResetModal(false)}
-      />
+      {canResetData ? (
+        <PasswordConfirmModal
+          open={showResetModal}
+          title="Reset Report Data"
+          description="All event history will be permanently deleted. This cannot be undone."
+          confirmLabel="Reset All Data"
+          variant="danger"
+          onConfirm={handleResetData}
+          onCancel={() => setShowResetModal(false)}
+        />
+      ) : null}
     </AnimatedPage>
   );
 }

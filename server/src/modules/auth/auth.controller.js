@@ -7,6 +7,7 @@ import {
   loginAdmin,
   loginUser,
   requestPasswordResetOtp,
+  resendAdminLoginOtp,
   resetPassword,
   verifyAdminLoginOtp,
   verifyCurrentPassword,

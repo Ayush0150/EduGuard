@@ -79,7 +79,9 @@ export function setAuthSession({ token, user = null, remember = true }) {
     storage.setItem(ACCESS_TOKEN_KEY, token);
     storage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
     storage.setItem(SESSION_TIMESTAMP_KEY, String(Date.now()));
-  } catch (err) {}
+  } catch {
+    // Ignore storage errors (private mode/quota/etc.).
+  }
 }
 
 export function getAuthSession() {
@@ -109,7 +111,7 @@ export function getAuthSession() {
       user: session.user ?? null,
       isValid: true,
     };
-  } catch (err) {
+  } catch {
     return { token: null, user: null, isValid: false };
   }
 }
@@ -142,7 +144,9 @@ export function updateSessionUser(user) {
 
     const storage = session.remember ? localStorage : sessionStorage;
     storage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
-  } catch (err) {}
+  } catch {
+    // Ignore storage errors (private mode/quota/etc.).
+  }
 }
 
 export function clearAuthSession() {
@@ -156,7 +160,9 @@ export function clearAuthSession() {
     });
 
     window.dispatchEvent(new Event("eduguard:session-cleared"));
-  } catch (err) {}
+  } catch {
+    // Ignore storage errors (private mode/quota/etc.).
+  }
 }
 
 /* ---------------------------------------------------

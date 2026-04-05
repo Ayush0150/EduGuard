@@ -40,6 +40,7 @@ export const env = {
   jwtSecret: requireEnv("JWT_SECRET"),
   jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? "7d",
   clientOrigin: process.env.CLIENT_ORIGIN ?? "http://localhost:5174",
+  deviceWsSecret: process.env.DEVICE_WS_SECRET ?? "",
   superAdminEmail: (process.env.SUPER_ADMIN_EMAIL ?? "").trim().toLowerCase(),
   adminRecoveryEmail: (process.env.ADMIN_RECOVERY_EMAIL ?? "")
     .trim()
@@ -71,6 +72,11 @@ if (env.isProduction) {
   if (env.jwtSecret.length < 32) {
     throw new Error(
       "SECURITY ERROR: JWT_SECRET must be at least 32 characters long in production."
+    );
+  }
+  if (env.deviceWsSecret.length < 16) {
+    throw new Error(
+      "SECURITY ERROR: DEVICE_WS_SECRET must be set and at least 16 characters long in production."
     );
   }
   if (!env.superAdminEmail) {

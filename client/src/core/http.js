@@ -15,6 +15,7 @@
 import axios from "axios";
 import { isJwtExpired } from "./auth/jwt";
 import { clearAuthSession, getAccessToken } from "./auth/tokenStorage";
+import { API_BASE_URL } from "./config/runtime";
 
 /* ---------------------------------------------------
    Configuration
@@ -34,7 +35,7 @@ const RETRYABLE_STATUS_CODES = new Set([408, 429, 500, 502, 503, 504]);
 --------------------------------------------------- */
 
 const http = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080",
+  baseURL: API_BASE_URL,
   withCredentials: true,
   timeout: 15000,
   headers: {

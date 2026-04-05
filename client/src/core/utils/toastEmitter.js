@@ -34,7 +34,7 @@ export const toastEmitter = {
     listeners.forEach((listener) => {
       try {
         listener(payload);
-      } catch (err) {
+      } catch {
         // Prevent one broken listener from breaking others
       }
     });

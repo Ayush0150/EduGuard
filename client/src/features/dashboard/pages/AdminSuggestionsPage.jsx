@@ -32,14 +32,12 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import AnimatedPage from "../../../core/components/AnimatedPage";
+import { API_BASE_URL } from "../../../core/config/runtime";
+import { withAuthHeaders } from "../../../core/http/authHeaders";
 
 /* ════════════════════════════════════════════════════════════════
    CONSTANTS
    ════════════════════════════════════════════════════════════════ */
-
-const API_BASE =
-  import.meta.env.VITE_API_BASE_URL ??
-  `http://${window.location.hostname}:8080`;
 
 const CATEGORIES = [
   { value: "", label: "All Categories" },
@@ -168,13 +166,18 @@ export default function AdminSuggestionsPage() {
   const fetchTabCounts = useCallback(async () => {
     try {
       const [allRes, wsRes, doneRes] = await Promise.all([
-        fetch(`${API_BASE}/api/v1/suggestions?limit=1`).then((r) => r.json()),
-        fetch(`${API_BASE}/api/v1/suggestions?status=workspace&limit=1`).then(
-          (r) => r.json()
-        ),
-        fetch(`${API_BASE}/api/v1/suggestions?status=done&limit=1`).then((r) =>
-          r.json()
-        ),
+        fetch(`${API_BASE_URL}/api/v1/suggestions?limit=1`, {
+          headers: withAuthHeaders(),
+        }).then((r) => r.json()),
+        fetch(
+          `${API_BASE_URL}/api/v1/suggestions?status=workspace&limit=1`,
+          {
+            headers: withAuthHeaders(),
+          }
+        ).then((r) => r.json()),
+        fetch(`${API_BASE_URL}/api/v1/suggestions?status=done&limit=1`, {
+          headers: withAuthHeaders(),
+        }).then((r) => r.json()),
       ]);
       setTabCounts({
         all: allRes.pagination?.total ?? 0,
@@ -201,7 +204,9 @@ export default function AdminSuggestionsPage() {
       if (category) params.set("category", category);
       if (activeTab) params.set("status", activeTab);
 
-      const res = await fetch(`${API_BASE}/api/v1/suggestions?${params}`);
+      const res = await fetch(`${API_BASE_URL}/api/v1/suggestions?${params}`, {
+        headers: withAuthHeaders(),
+      });
       if (!res.ok) throw new Error(`Server responded ${res.status}`);
 
       const json = await res.json();
@@ -237,11 +242,14 @@ export default function AdminSuggestionsPage() {
     async (id, newStatus) => {
       setActionLoading(id);
       try {
-        const res = await fetch(`${API_BASE}/api/v1/suggestions/${id}/status`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: newStatus }),
-        });
+        const res = await fetch(
+          `${API_BASE_URL}/api/v1/suggestions/${id}/status`,
+          {
+            method: "PATCH",
+            headers: withAuthHeaders({ "Content-Type": "application/json" }),
+            body: JSON.stringify({ status: newStatus }),
+          }
+        );
         if (!res.ok) {
           const j = await res.json().catch(() => ({}));
           throw new Error(j.message || `Failed (${res.status})`);
@@ -266,8 +274,9 @@ export default function AdminSuggestionsPage() {
       setActionLoading(id);
       setDeleteConfirm(null);
       try {
-        const res = await fetch(`${API_BASE}/api/v1/suggestions/${id}`, {
+        const res = await fetch(`${API_BASE_URL}/api/v1/suggestions/${id}`, {
           method: "DELETE",
+          headers: withAuthHeaders(),
         });
         if (!res.ok) {
           const j = await res.json().catch(() => ({}));
