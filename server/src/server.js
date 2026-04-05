@@ -7,6 +7,7 @@ import { connectMongo } from "./core/db/connectMongo.js";
 import { logger } from "./core/utils/logger.js";
 import { SmsCounter } from "./modules/sms/smsCounter.model.js";
 import {
+  patchPayloadWithAuthCounters,
   toGsmPayloadWithCounters,
   upsertSmsCounterFromTelemetry,
 } from "./modules/sms/smsCounter.service.js";

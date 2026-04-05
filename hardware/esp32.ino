@@ -42,9 +42,9 @@
 #define SIM_RX           5
 
 /* ================ NETWORK CONFIGURATION ================ */
-const char* ssid       = "ACTFIBERNET";
-const char* password   = "ayush@16032005";
-const char* ws_host    = "192.168.0.103";
+const char* ssid       = "POCO M2";
+const char* password   = "ayush@0150";
+const char* ws_host    = "172.23.173.105";
 const uint16_t ws_port = 8080;
 
 #define FW_VERSION       "6.0.0-SETTINGS"
@@ -97,7 +97,6 @@ char smsTplWashroom[161]  = "Washroom Dirty {room}";
 #define ACTIVE_DURATION      5000UL
 #define SMS_ACK_TIMEOUT      5000UL
 #define DEBOUNCE_TIME        40UL
-#define ABSENT_SMS_CONFIRM   5000UL
 
 #define BELL_ON_TIME         150UL
 #define BELL_GAP_TIME        400UL
@@ -132,7 +131,6 @@ unsigned long bellLast       = 0, sirenLast     = 0;
 unsigned long lastWiFiCheck  = 0, lastGsmRecheck = 0;
 unsigned long lastWifiHealth = 0, lastGsmHealth  = 0, lastEspHealth = 0;
 unsigned long pirHighStart   = 0, callStartTime  = 0;
-unsigned long absentCheckStart = 0;
 
 unsigned long smsSentToday = 0;
 unsigned long smsSentMonth = 0;
@@ -208,6 +206,14 @@ void markSmsSuccess() {
 
     smsSentToday++;
     smsSentMonth++;
+
+    /* Persist counters to NVS so they survive reboot / re-upload */
+    prefs.begin("eduguard", false);
+    prefs.putULong("smsDay",  smsSentToday);
+    prefs.putULong("smsMon",  smsSentMonth);
+    prefs.putInt("smsCY",     smsCounterYear);
+    prefs.putInt("smsCM",     smsCounterMonth);
+    prefs.end();
 }
 
 void updateSmsCounterResets() {
@@ -517,7 +523,6 @@ void processAlerts() {
         pendingAbsentSms   = false;
         teacherAbsentPulse = false;
         absentLatched      = false;
-        absentCheckStart   = 0;
         return;
     }
 
@@ -596,10 +601,10 @@ void runClassroomLogic() {
     if (now - periodStart >= cfgPeriodDuration) {
         periodNumber = (periodNumber % cfgTotalPeriods) + 1;
         periodStart  = now;
+        periodTime   = 0;              /* recalculate — prevent stale value from triggering grace check */
 
         teacherPresent = teacherLocked = teacherConfirmed = teacherAbsentPulse = false;
         absentLatched  = false;
-        absentCheckStart = 0;
         pendingAbsentSms = false;
         digitalWrite(TEACHER_LED, LOW);
 
@@ -622,7 +627,9 @@ void runClassroomLogic() {
     }
 
     /* --- Manual Button (debounced) --- */
-    if (!digitalRead(MANUAL_BTN) && manualReady && now - manualDebounce > DEBOUNCE_TIME) {
+    /* After grace-time absence is latched, physical button is ignored.
+       Only the dashboard TEACHER_FORCE_PRESENT command can override. */
+    if (!digitalRead(MANUAL_BTN) && manualReady && now - manualDebounce > DEBOUNCE_TIME && !absentLatched) {
         manualDebounce = now;
         manualReady    = false;
         teacherConfirmed = true;
@@ -630,8 +637,6 @@ void runClassroomLogic() {
         teacherLocked    = true;
         teacherAbsentPulse = false;
         pendingAbsentSms   = false;
-        absentLatched      = false;
-        absentCheckStart   = 0;
         digitalWrite(TEACHER_LED, HIGH);
     }
     if (digitalRead(MANUAL_BTN)) manualReady = true;
@@ -644,16 +649,11 @@ void runClassroomLogic() {
             teacherAbsentPulse = false;
             pendingAbsentSms   = false;
             absentLatched      = false;
-            absentCheckStart   = 0;
             digitalWrite(TEACHER_LED, HIGH);
         }
 
         if (!teacherPresent && periodTime >= (int)(cfgGraceDuration / 1000)) {
-            if (absentCheckStart == 0) {
-                absentCheckStart = now;
-            }
-
-            if (!absentLatched && (now - absentCheckStart >= ABSENT_SMS_CONFIRM)) {
+            if (!absentLatched) {
                 absentLatched      = true;
                 teacherAbsentPulse = true;
                 absentStart        = now;
@@ -663,8 +663,6 @@ void runClassroomLogic() {
                 pirHighStart       = 0;
                 digitalWrite(TEACHER_LED, LOW);
             }
-        } else {
-            absentCheckStart = 0;
         }
     }
 
@@ -809,7 +807,7 @@ void sendTelemetry() {
       h, m, s,
       (rtcOk && cfgHwEnabled) ? "true" : "false",
       teacherConfirmed ? "true" : "false",
-      (periodTime < (int)(cfgGraceDuration / 1000) ? "null" : (teacherAbsentPulse ? "true" : "false")),
+      (periodTime < (int)(cfgGraceDuration / 1000) ? "null" : (absentLatched ? "true" : "false")),
       acPulse ? "true" : "false",
       emPulse ? "true" : "false",
       dirtyActive ? "true" : "false"
@@ -937,6 +935,10 @@ void saveSettings() {
     prefs.putString("tplAbs",   smsTplAbsent);
     prefs.putString("tplAC",    smsTplAC);
     prefs.putString("tplWash",  smsTplWashroom);
+    prefs.putULong("smsDay",    smsSentToday);
+    prefs.putULong("smsMon",    smsSentMonth);
+    prefs.putInt("smsCY",       smsCounterYear);
+    prefs.putInt("smsCM",       smsCounterMonth);
     prefs.end();
     Serial.println("[NVS] Settings saved");
 }
@@ -966,6 +968,10 @@ void loadSettings() {
         prefs.getString("tplAbs",   smsTplAbsent,    sizeof(smsTplAbsent));
         prefs.getString("tplAC",    smsTplAC,        sizeof(smsTplAC));
         prefs.getString("tplWash",  smsTplWashroom,  sizeof(smsTplWashroom));
+        smsSentToday    = prefs.getULong("smsDay",  0);
+        smsSentMonth    = prefs.getULong("smsMon",  0);
+        smsCounterYear  = prefs.getInt("smsCY",     0);
+        smsCounterMonth = prefs.getInt("smsCM",     0);
         Serial.println("[NVS] Settings loaded from flash");
     } else {
         Serial.println("[NVS] No saved settings — using defaults");
@@ -1004,6 +1010,10 @@ void factoryReset() {
     strncpy(smsTplAbsent,    "Teacher Absent {room}",  sizeof(smsTplAbsent));
     strncpy(smsTplAC,        "AC Req Room {room}",     sizeof(smsTplAC));
     strncpy(smsTplWashroom,  "Washroom Dirty {room}",  sizeof(smsTplWashroom));
+    smsSentToday    = 0;
+    smsSentMonth    = 0;
+    smsCounterYear  = 0;
+    smsCounterMonth = 0;
     Serial.println("[INFO] Factory reset — rebooting...");
     delay(500);
     ESP.restart();
@@ -1334,7 +1344,6 @@ void webSocketEvent(WStype_t type, uint8_t* payload, size_t length) {
             teacherAbsentPulse = false;
             pendingAbsentSms   = false;
             absentLatched      = false;
-            absentCheckStart   = 0;
             digitalWrite(TEACHER_LED, HIGH);
             handled = true;
         }
@@ -1669,6 +1678,10 @@ void setup() {
     /* Load persistent settings from NVS (before anything uses them) */
     loadSettings();
 
+    /* Anchor periodStart early so that socketAwareWait() / runClassroomLogic()
+       called during GSM init don't see a stale periodStart=0 and falsely
+       trigger grace-timeout absent SMS before the first period even begins. */
+    periodStart = millis();
 
     /* Watchdog */
     #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)

@@ -7,13 +7,13 @@ let gotCtrl = false,
   gotAck = false;
 
 dev.on("open", () => {
-  dev.send(JSON.stringify({ type: "register", device: "CLASSROOM-706" }));
+  dev.send(JSON.stringify({ type: "register", device: "CLASSROOM-707" }));
   setTimeout(() => {
     const payloads = [
       {
         category: "arduino",
         payload:
-          "class:706,P:2,PT:9,TP:1,AC:0,EM:0,GS:410,T:19:30,isSystemActive:true,isPresent:true,isTeacherAbsent:false,isACReq:false,isEmergencyReq:false,isWashroomDirty:false",
+          "class:707,P:2,PT:9,TP:1,AC:0,EM:0,GS:410,T:19:30,isSystemActive:true,isPresent:true,isTeacherAbsent:false,isACReq:false,isEmergencyReq:false,isWashroomDirty:false",
       },
       {
         category: "wifi",
@@ -38,7 +38,7 @@ dev.on("open", () => {
     ];
     for (const p of payloads) {
       dev.send(
-        JSON.stringify({ type: "telemetry", device: "CLASSROOM-706", ...p })
+        JSON.stringify({ type: "telemetry", device: "CLASSROOM-707", ...p })
       );
     }
   }, 400);
@@ -51,7 +51,7 @@ dev.on("message", (msg) => {
     dev.send(
       JSON.stringify({
         type: "control_ack",
-        device: "CLASSROOM-706",
+        device: "CLASSROOM-707",
         command: d.command,
       })
     );
@@ -63,7 +63,7 @@ dash.on("open", () => {
     dash.send(
       JSON.stringify({
         type: "control",
-        device: "CLASSROOM-706",
+        device: "CLASSROOM-707",
         command: "AC_REQUEST",
       })
     );

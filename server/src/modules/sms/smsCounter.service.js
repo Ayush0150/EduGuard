@@ -109,6 +109,12 @@ export async function upsertSmsCounter(device, counters) {
   let dailyReset = existing.lastDailyReset || "";
   let monthlyReset = existing.lastMonthlyReset || "";
 
+  /* If reset-date fields were never written (legacy records or missing fields),
+     backfill them to today without resetting counters. This prevents a false
+     "month changed" / "day changed" detection on every server restart. */
+  if (!dailyReset) dailyReset = curDay;
+  if (!monthlyReset) monthlyReset = curMonth;
+
   const dayChanged = curDay !== dailyReset;
   const monthChanged = curMonth !== monthlyReset;
 

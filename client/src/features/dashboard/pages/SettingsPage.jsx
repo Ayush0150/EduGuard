@@ -72,19 +72,25 @@ function parseSmsTemplates(raw) {
   return obj;
 }
 
-/* ── SMS placeholder definitions ── */
-const SMS_PLACEHOLDERS = [
-  { tag: "{room}", label: "Room", preview: "706" },
+/* ── SMS placeholder definitions (room preview is injected dynamically) ── */
+const SMS_PLACEHOLDERS_STATIC = [
   { tag: "{time}", label: "Time", preview: "09:15:30" },
   { tag: "{period}", label: "Period", preview: "3" },
   { tag: "{gas}", label: "Gas", preview: "2950" },
   { tag: "{date}", label: "Date", preview: "21/06/2025" },
 ];
 
+function getSmsPlaceholders(roomNo) {
+  return [
+    { tag: "{room}", label: "Room", preview: roomNo || "707" },
+    ...SMS_PLACEHOLDERS_STATIC,
+  ];
+}
+
 /* ── Build preview by replacing placeholders with example values ── */
-function buildPreview(template) {
+function buildPreview(template, roomNo) {
   let result = template;
-  SMS_PLACEHOLDERS.forEach(({ tag, preview }) => {
+  getSmsPlaceholders(roomNo).forEach(({ tag, preview }) => {
     result = result.replaceAll(tag, preview);
   });
   return result;
@@ -162,9 +168,7 @@ function Toggle({ enabled, onChange, disabled = false }) {
       aria-checked={enabled}
       role="switch"
       className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-all duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 dark:focus:ring-offset-surface-900 ${
-        enabled
-          ? "bg-emerald-500"
-          : "bg-surface-300 dark:bg-surface-600"
+        enabled ? "bg-emerald-500" : "bg-surface-300 dark:bg-surface-600"
       } ${disabled ? "cursor-not-allowed opacity-50" : "active:scale-95"}`}
     >
       <span
@@ -271,7 +275,9 @@ function ActionButton({
       onClick={onClick}
       disabled={disabled}
       className={`inline-flex items-center justify-center gap-1.5 rounded-xl font-bold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-surface-900 ${base} ${variants[variant]} ${
-        disabled ? "cursor-not-allowed opacity-50 shadow-none" : "active:scale-[0.97]"
+        disabled
+          ? "cursor-not-allowed opacity-50 shadow-none"
+          : "active:scale-[0.97]"
       }`}
     >
       {Icon && <Icon size={small ? 14 : 16} strokeWidth={2.5} />}
@@ -291,7 +297,9 @@ function StatusBadge({ active }) {
     >
       <span
         className={`h-1.5 w-1.5 rounded-full ${
-          active ? "bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.8)]" : "bg-surface-400"
+          active
+            ? "bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.8)]"
+            : "bg-surface-400"
         }`}
       />
       {active ? "On" : "Off"}
@@ -307,11 +315,13 @@ function TemplateEditor({
   onSave,
   saveStatus: tplStatus,
   disabled,
+  roomNo,
 }) {
   const textareaRef = useRef(null);
   const charCount = value.length;
   const overLimit = charCount > 160;
-  const preview = buildPreview(value);
+  const placeholders = getSmsPlaceholders(roomNo);
+  const preview = buildPreview(value, roomNo);
 
   const insertPlaceholder = useCallback(
     (tag) => {
@@ -340,13 +350,15 @@ function TemplateEditor({
           {label}
         </p>
         {description && (
-          <p className="mt-1 text-[13px] text-surface-500 dark:text-surface-400">{description}</p>
+          <p className="mt-1 text-[13px] text-surface-500 dark:text-surface-400">
+            {description}
+          </p>
         )}
       </div>
 
       {/* Placeholder Buttons */}
       <div className="flex flex-wrap gap-2">
-        {SMS_PLACEHOLDERS.map(({ tag, label: lbl }) => (
+        {placeholders.map(({ tag, label: lbl }) => (
           <button
             key={tag}
             type="button"
@@ -354,7 +366,9 @@ function TemplateEditor({
             onClick={() => insertPlaceholder(tag)}
             className="inline-flex items-center gap-1.5 rounded-lg border border-surface-200 bg-white px-2.5 py-1.5 text-[11px] font-bold text-surface-700 shadow-sm transition-all hover:border-brand-500 hover:bg-brand-50 hover:text-brand-700 active:scale-95 dark:border-surface-700 dark:bg-surface-800 dark:text-surface-300 dark:hover:border-brand-500 dark:hover:bg-brand-500/10 dark:hover:text-brand-400 disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            <span className="font-mono text-brand-600 dark:text-brand-400">{tag}</span>
+            <span className="font-mono text-brand-600 dark:text-brand-400">
+              {tag}
+            </span>
             <span className="text-[10px] font-semibold text-surface-400">
               {lbl}
             </span>
@@ -664,7 +678,8 @@ export default function SettingsPage() {
             Configuration
           </h1>
           <p className="mt-2 text-[15px] font-medium text-surface-500 dark:text-surface-400">
-            Manage your hardware preferences, alerting thresholds, and system logic.
+            Manage your hardware preferences, alerting thresholds, and system
+            logic.
           </p>
         </div>
 
@@ -674,7 +689,9 @@ export default function SettingsPage() {
           <span className={`h-2 w-2 rounded-full ${deviceDotCls}`} />
           {deviceStatusLabel}
           {deviceId && deviceOnline && (
-            <span className="ml-1 border-l border-current pl-2 font-mono opacity-60 mix-blend-multiply dark:mix-blend-screen">{deviceId}</span>
+            <span className="ml-1 border-l border-current pl-2 font-mono opacity-60 mix-blend-multiply dark:mix-blend-screen">
+              {deviceId}
+            </span>
           )}
         </div>
       </div>
@@ -683,14 +700,18 @@ export default function SettingsPage() {
       {!connected && (
         <div className="flex items-center gap-3 rounded-xl border border-amber-200/80 bg-gradient-to-r from-amber-50 to-white px-5 py-4 shadow-sm dark:border-amber-800/40 dark:from-amber-950/30 dark:to-surface-900">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/40">
-            <AlertTriangle size={18} className="text-amber-600 dark:text-amber-400" />
+            <AlertTriangle
+              size={18}
+              className="text-amber-600 dark:text-amber-400"
+            />
           </div>
           <div>
             <p className="text-[14px] font-bold text-amber-900 dark:text-amber-300">
               WebSocket Disconnected
             </p>
             <p className="text-[13px] text-amber-700/80 dark:text-amber-400/80">
-              Changes cannot be saved until the connection to the server is restored.
+              Changes cannot be saved until the connection to the server is
+              restored.
             </p>
           </div>
         </div>
@@ -713,7 +734,11 @@ export default function SettingsPage() {
           <Toggle
             enabled={hardwareEnabled}
             onChange={(v) =>
-              handleToggle(v ? "HW_ENABLE" : "HW_DISABLE", v, setHardwareEnabled)
+              handleToggle(
+                v ? "HW_ENABLE" : "HW_DISABLE",
+                v,
+                setHardwareEnabled
+              )
             }
             disabled={!connected}
           />
@@ -728,24 +753,6 @@ export default function SettingsPage() {
             enabled={gsmEnabled}
             onChange={(v) =>
               handleToggle(v ? "GSM_ENABLE" : "GSM_DISABLE", v, setGsmEnabled)
-            }
-            disabled={!connected}
-          />
-        </SettingRow>
-
-        <SettingRow
-          label="Missed Call Service"
-          description="Ring admin number on emergency in addition to SMS"
-        >
-          <StatusBadge active={missedCallEnabled} />
-          <Toggle
-            enabled={missedCallEnabled}
-            onChange={(v) =>
-              handleToggle(
-                v ? "CALL_ENABLE" : "CALL_DISABLE",
-                v,
-                setMissedCallEnabled
-              )
             }
             disabled={!connected}
           />
@@ -1146,6 +1153,7 @@ export default function SettingsPage() {
           onChange={setTplEmergency}
           saveStatus={saveStatus.tplEm}
           disabled={!connected}
+          roomNo={classroomNo}
           onSave={() =>
             handleSave("tplEm", `SET_SMS_TPL_EMERGENCY:${tplEmergency}`)
           }
@@ -1157,6 +1165,7 @@ export default function SettingsPage() {
           onChange={setTplAbsent}
           saveStatus={saveStatus.tplAb}
           disabled={!connected}
+          roomNo={classroomNo}
           onSave={() => handleSave("tplAb", `SET_SMS_TPL_ABSENT:${tplAbsent}`)}
         />
         <TemplateEditor
@@ -1166,6 +1175,7 @@ export default function SettingsPage() {
           onChange={setTplAC}
           saveStatus={saveStatus.tplAc}
           disabled={!connected}
+          roomNo={classroomNo}
           onSave={() => handleSave("tplAc", `SET_SMS_TPL_AC:${tplAC}`)}
         />
         <TemplateEditor
@@ -1175,6 +1185,7 @@ export default function SettingsPage() {
           onChange={setTplWashroom}
           saveStatus={saveStatus.tplWr}
           disabled={!connected}
+          roomNo={classroomNo}
           onSave={() =>
             handleSave("tplWr", `SET_SMS_TPL_WASHROOM:${tplWashroom}`)
           }
@@ -1245,7 +1256,9 @@ export default function SettingsPage() {
       <div className="pt-8 text-center">
         <p className="text-[12px] font-medium text-surface-400 dark:text-surface-600">
           EduGuard Configuration
-          {deviceId && <span className="mx-2 tracking-widest opacity-50">&middot;</span>}
+          {deviceId && (
+            <span className="mx-2 tracking-widest opacity-50">&middot;</span>
+          )}
           {deviceId && <span className="font-mono opacity-70">{deviceId}</span>}
         </p>
       </div>
