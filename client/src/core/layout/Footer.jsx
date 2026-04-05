@@ -1,9 +1,9 @@
 import {
-  Github,
-  Instagram,
+  Camera,
+  GitBranch,
+  Globe,
   Mail,
   MapPin,
-  Twitter,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { getAuthSession } from "../auth/tokenStorage";
@@ -23,9 +23,9 @@ const ADMIN_LINKS = [
 ];
 
 const SOCIAL_LINKS = [
-  { icon: Twitter, href: "#", label: "Twitter" },
-  { icon: Github, href: "https://github.com/Ayush0150", label: "GitHub" },
-  { icon: Instagram, href: "#", label: "Instagram" },
+  { icon: Globe, href: "#", label: "Website" },
+  { icon: GitBranch, href: "https://github.com/Ayush0150", label: "GitHub" },
+  { icon: Camera, href: "#", label: "Instagram" },
 ];
 
 const CURRENT_YEAR = new Date().getFullYear();
